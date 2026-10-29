@@ -1,0 +1,18 @@
+{
+  "name": "nutritrack",
+  "version": "0.2.0",
+  "private": true,
+  "packageManager": "pnpm@11.25.0",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @nutritrack/api dev",
+    "start": "pnpm --filter @nutritrack/api start",
+    "test": "pnpm --filter @nutritrack/api test",
+    "format": "prettier --write \"apps/**/*.{js,css,html,json}\" \".vscode/**/*.json\" \"*.json\" \"pnpm-workspace.yaml\""
+  },
+  "devDependencies": {
+    "prettier": "^3.9.10"
+  }
+}

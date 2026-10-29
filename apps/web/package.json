@@ -1,0 +1,6 @@
+{
+  "name": "@nutritrack/web",
+  "version": "0.2.0",
+  "private": true,
+  "description": "Interface web profissional do NutriTrack; servida pela API na etapa atual"
+}

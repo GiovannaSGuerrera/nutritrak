@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="theme-color" content="#f8f5e9" />
+    <title>NutriTrack — acompanhamento nutricional</title>
+    <link rel="stylesheet" href="/styles.css?v=20261028-7" />
+    <script src="/app.js?v=20261028-7" defer></script>
+    <script src="/portal.js?v=20261028-3" defer></script>
+  </head>
+  <body>
+    <div id="auth" class="auth-shell">
+      <div class="auth-brand">
+        <span class="brand-mark" aria-hidden="true">♧</span><span>NutriTrack</span>
+      </div>
+      <section class="auth-card">
+        <p class="eyebrow">SEU ESPAÇO PROFISSIONAL</p>
+        <h1 id="auth-title">Bem-vinda ao NutriTrack</h1>
+        <p class="muted" id="auth-subtitle">Entre para organizar seus acompanhamentos.</p>
+        <p class="runtime-notice" id="runtime-notice" hidden>
+          Para usar o NutriTrack, inicie o servidor na pasta do projeto com <code>pnpm dev</code> e
+          abra <code>http://localhost:3000</code>.
+        </p>
+        <form id="auth-form">
+          <label
+            >Seu nome<input
+              id="auth-name"
+              autocomplete="name"
+              placeholder="Nome profissional"
+              hidden
+          /></label>
+          <label
+            >E-mail<input
+              id="auth-email"
+              type="email"
+              required
+              autocomplete="email"
+              placeholder="voce@exemplo.com"
+          /></label>
+          <label
+            >Senha<input
+              id="auth-password"
+              type="password"
+              required
+              minlength="12"
+              autocomplete="current-password"
+              placeholder="Pelo menos 12 caracteres"
+          /></label>
+          <button class="button primary full" id="auth-submit">Entrar</button>
+        </form>
+        <p class="auth-toggle">
+          <span id="auth-toggle-label">Ainda não tem uma conta?</span>
+          <button class="link-button" id="auth-toggle">Criar conta</button>
+        </p>
+        <p class="auth-toggle"><a href="/paciente">Acessar portal do paciente</a></p>
+        <p class="form-error" id="auth-error"></p>
+        <p class="auth-note">
+          Dados persistidos localmente para desenvolvimento. Use dados fictícios neste ambiente.
+        </p>
+      </section>
+    </div>
+
+    <main id="patient-portal" class="patient-portal" hidden></main>
+
+    <div id="app" class="app-shell" hidden>
+      <aside class="sidebar" id="sidebar">
+        <a class="brand" href="#dashboard"
+          ><span class="brand-mark" aria-hidden="true">♧</span
+          ><span><strong>NutriTrack</strong><small>ESPAÇO PROFISSIONAL</small></span></a
+        >
+        <p class="nav-caption">CONSULTÓRIO</p>
+        <nav aria-label="Navegação principal">
+          <button class="nav-item active" data-page="dashboard">
+            <span class="nav-icon">⌁</span> Visão geral
+          </button>
+          <button class="nav-item" data-page="patients">
+            <span class="nav-icon">♧</span> Pacientes <b id="patient-badge">0</b>
+          </button>
+          <button class="nav-item" data-page="assessments">
+            <span class="nav-icon">♡</span> Avaliações
+          </button>
+          <button class="nav-item" data-page="meal-plans">
+            <span class="nav-icon">▤</span> Planos alimentares
+          </button>
+          <button class="nav-item" data-page="agenda">
+            <span class="nav-icon">▦</span> Agenda
+          </button>
+          <button class="nav-item" data-page="goals"><span class="nav-icon">◎</span> Metas</button>
+        </nav>
+        <div class="privacy-card">
+          <strong><i></i> Dados privados</strong
+          ><span>Seus pacientes ficam isolados da conta de outros profissionais.</span>
+        </div>
+        <div class="sidebar-bottom">
+          <div class="user-chip">
+            <div class="avatar" id="user-avatar">N</div>
+            <div class="user-copy">
+              <strong id="user-name">Nutricionista</strong
+              ><small id="user-email">Nutricionista</small>
+            </div>
+            <button
+              id="logout"
+              class="icon-button"
+              title="Sair da conta"
+              aria-label="Sair da conta"
+            >
+              ↗
+            </button>
+          </div>
+        </div>
+      </aside>
+      <main class="main">
+        <header class="topbar">
+          <button
+            class="mobile-menu"
+            id="mobile-menu"
+            aria-label="Abrir menu"
+            aria-expanded="false"
+          >
+            ☰
+          </button>
+          <div class="topbar-context">
+            <div class="breadcrumb">
+              Espaço profissional <span>/</span> <strong id="crumb">Visão geral</strong>
+            </div>
+            <div class="topbar-greeting" id="greeting">Olá</div>
+          </div>
+          <div class="topbar-actions">
+            <div class="topbar-date" id="today-label"></div>
+            <button class="button primary top-new-patient" id="top-new-patient">
+              <span aria-hidden="true">＋</span><span class="desktop-label">Novo paciente</span
+              ><span class="mobile-label">Cadastrar</span>
+            </button>
+          </div>
+        </header>
+        <div class="content" id="content"></div>
+      </main>
+    </div>
+    <dialog id="modal" class="modal">
+      <form method="dialog" class="modal-close">
+        <button class="icon-button" aria-label="Fechar">×</button>
+      </form>
+      <div id="modal-content"></div>
+    </dialog>
+    <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  </body>
+</html>
