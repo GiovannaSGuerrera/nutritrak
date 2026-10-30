@@ -135,7 +135,20 @@ function userFor(req) {
 function patientAccountFor(req) {
   const token = cookie(req, 'nt_patient_session');
   const id = token && sessionSubject(patientSessions, token);
-  return store.patientAccounts.find((a) => a.id === id) || null;
+  const account = store.patientAccounts.find((a) => a.id === id) || null;
+  return portalAccessStatus(account) === 'active' ? account : null;
+}
+function portalAccessStatus(account) {
+  return account?.portalStatus || 'active';
+}
+function patientAccountForPatient(patient, workspaceId = patient.workspaceId) {
+  return store.patientAccounts.find(
+    (account) =>
+      account.patientId === patient.id &&
+      (account.workspaceId
+        ? account.workspaceId === workspaceId
+        : account.professionalId === patient.userId),
+  ) || null;
 }
 function sessionSubject(sessionStore, token) {
   const session = sessionStore.get(token);
@@ -156,6 +169,7 @@ function tokenHash(token) {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 function safePatientPortal(account) {
+  if (portalAccessStatus(account) !== 'active') return null;
   const patient = store.patients.find(
     (p) =>
       p.id === account.patientId &&
@@ -399,6 +413,8 @@ async function handle(req, res) {
     const professional = store.users.find((u) => u.id === invite.professionalId);
     if (!patient || patient.status === 'Arquivado')
       return json(res, 410, { error: 'Este convite não está mais disponível.' });
+    if (patientAccountForPatient(patient, invite.workspaceId || patient.workspaceId))
+      return json(res, 410, { error: 'Este convite não está mais disponível.' });
     return json(res, 200, {
       invitation: {
         patientName: patient.name,
@@ -442,6 +458,8 @@ async function handle(req, res) {
       return json(res, 400, {
         error: 'Use o e-mail informado pelo profissional para este convite.',
       });
+    if (patientAccountForPatient(patient, invite.workspaceId || patient.workspaceId))
+      return json(res, 409, { error: 'Este paciente já tem acesso ao portal.' });
     if (
       store.patientAccounts.some((a) => a.email === email) ||
       store.users.some((u) => u.email === email)
@@ -458,6 +476,7 @@ async function handle(req, res) {
       patientId: patient.id,
       professionalId: patient.userId,
       workspaceId: invite.workspaceId || patient.workspaceId || null,
+      portalStatus: 'active',
       email,
       salt,
       hash: hash.toString('hex'),
@@ -501,6 +520,8 @@ async function handle(req, res) {
       !(await scrypt(b.password, account.salt, 64)).equals(Buffer.from(account.hash, 'hex'))
     )
       return json(res, 401, { error: 'E-mail ou senha incorretos.' });
+    if (portalAccessStatus(account) !== 'active')
+      return json(res, 401, { error: 'E-mail ou senha incorretos.' });
     const portal = safePatientPortal(account);
     if (!portal)
       return json(res, 403, {
@@ -526,7 +547,7 @@ async function handle(req, res) {
     const account = store.patientAccounts.find(
       (a) => a.id === reset.accountId && a.patientId === reset.patientId,
     );
-    if (!account)
+    if (!account || portalAccessStatus(account) !== 'active')
       return json(res, 410, {
         error: 'Este acesso não está mais disponível. Entre em contato com o profissional.',
       });
@@ -553,7 +574,7 @@ async function handle(req, res) {
     const account = store.patientAccounts.find(
       (a) => a.id === reset.accountId && a.patientId === reset.patientId,
     );
-    if (!account)
+    if (!account || portalAccessStatus(account) !== 'active')
       return json(res, 410, {
         error: 'Este acesso não está mais disponível. Entre em contato com o profissional.',
       });
@@ -847,7 +868,8 @@ async function handle(req, res) {
   }
   if (workspaceMembersMatch && req.method === 'GET') {
     const contextMembership = activeMembership(store, uid, workspaceMembersMatch[1]);
-    if (!contextMembership) return json(res, 404, { error: 'Workspace não encontrado.' });
+    if (!contextMembership || !hasPermission(store, contextMembership, 'members.manage'))
+      return json(res, 404, { error: 'Workspace não encontrado.' });
     const members = store.memberships
       .filter((entry) => entry.workspaceId === workspaceMembersMatch[1] && entry.status === 'active')
       .map((entry) => {
@@ -918,7 +940,8 @@ async function handle(req, res) {
     return json(res, 200, { workspace: { id: workspace.id, name: workspace.name, type: workspace.type } });
   }
   if (workspaceRolesMatch && req.method === 'GET') {
-    if (!activeMembership(store, uid, workspaceRolesMatch[1]))
+    const contextMembership = activeMembership(store, uid, workspaceRolesMatch[1]);
+    if (!contextMembership || !hasPermission(store, contextMembership, 'members.manage'))
       return json(res, 404, { error: 'Workspace não encontrado.' });
     const roles = Object.entries(ROLE_DEFINITIONS).map(([key, definition]) => ({
       key,
@@ -1056,6 +1079,8 @@ async function handle(req, res) {
     });
   const { workspace, membership } = context;
   if (req.method === 'GET' && url.pathname === '/api/clinicians') {
+    if (!hasPermission(store, membership, 'patients.assign'))
+      return json(res, 404, { error: 'Workspace não encontrado.' });
     const clinicians = store.memberships
       .filter(
         (entry) =>
@@ -1244,16 +1269,20 @@ async function handle(req, res) {
     if (!p || !canReadPatient(uid, workspace.id, p.id))
       return json(res, 404, { error: 'Paciente não encontrado.' });
     const clinicalAccess = hasClinicalAccess(uid, workspace.id, p.id, 'clinical.read');
-    const account = store.patientAccounts.find(
-      (a) => a.patientId === p.id && (a.workspaceId || p.workspaceId) === workspace.id,
-    );
+    const account = patientAccountForPatient(p, workspace.id);
+    const portalStatus = account ? portalAccessStatus(account) : null;
     return json(res, 200, {
       patient: clinicalAccess ? p : patientAdminView(p),
       clinicalAccess,
       assignments: hasPermission(store, membership, 'patients.assign')
         ? patientClinicalAssignments(workspace.id, p.id)
         : [],
-      portal: { enabled: !!account, email: account?.email || null },
+      portal: {
+        enabled: portalStatus === 'active',
+        exists: !!account,
+        status: portalStatus,
+        email: account?.email || null,
+      },
       assessments: clinicalAccess
         ? store.assessments
             .filter((x) => x.patientId === p.id && x.workspaceId === workspace.id)
@@ -1298,6 +1327,55 @@ async function handle(req, res) {
     audit(uid, 'patient_assignments_changed', 'patient', patient.id, workspace.id);
     await persist();
     return json(res, 200, { assignments: patientClinicalAssignments(workspace.id, patient.id) });
+  }
+  const portalAccessMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/portal-access$/);
+  if (portalAccessMatch && req.method === 'PATCH') {
+    const patient = patientInWorkspace(portalAccessMatch[1], workspace.id);
+    if (!patient || !hasClinicalAccess(uid, workspace.id, patient.id, 'clinical.write'))
+      return json(res, 404, { error: 'Paciente não encontrado.' });
+    const account = patientAccountForPatient(patient, workspace.id);
+    if (!account) return json(res, 409, { error: 'Este paciente ainda não ativou o portal.' });
+    const b = await body(req);
+    const nextStatus = String(b.status || '');
+    if (!['active', 'suspended', 'revoked'].includes(nextStatus))
+      return json(res, 400, { error: 'Informe um estado válido para o acesso ao portal.' });
+    const currentStatus = portalAccessStatus(account);
+    if (currentStatus === 'revoked' && nextStatus !== 'revoked')
+      return json(res, 409, { error: 'O acesso revogado não pode ser reativado.' });
+    if (nextStatus === 'active' && currentStatus !== 'suspended')
+      return json(res, 409, { error: 'Somente um acesso suspenso pode ser reativado.' });
+    if (currentStatus === nextStatus)
+      return json(res, 200, { portal: { status: currentStatus } });
+
+    const now = new Date().toISOString();
+    account.portalStatus = nextStatus;
+    account.portalStatusChangedAt = now;
+    account.portalStatusChangedBy = uid;
+    if (nextStatus !== 'active') {
+      for (const [session, value] of patientSessions)
+        if (value.subjectId === account.id) patientSessions.delete(session);
+      for (const invitation of store.patientInvitations)
+        if (
+          invitation.patientId === patient.id &&
+          (invitation.workspaceId
+            ? invitation.workspaceId === workspace.id
+            : patient.userId === invitation.professionalId) &&
+          !invitation.usedAt &&
+          !invitation.revokedAt
+        )
+          invitation.revokedAt = now;
+      for (const reset of store.patientPasswordResets)
+        if (reset.accountId === account.id && !reset.usedAt && !reset.revokedAt)
+          reset.revokedAt = now;
+    }
+    const action = nextStatus === 'active'
+      ? 'patient_portal_reactivated'
+      : nextStatus === 'suspended'
+        ? 'patient_portal_suspended'
+        : 'patient_portal_access_revoked';
+    audit(uid, action, 'patient', patient.id, workspace.id);
+    await persist();
+    return json(res, 200, { portal: { status: nextStatus } });
   }
   const inviteMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/invitations$/);
   if (inviteMatch && req.method === 'POST') {
@@ -1346,7 +1424,8 @@ async function handle(req, res) {
     const account = store.patientAccounts.find(
       (a) => a.patientId === patient.id && a.workspaceId === workspace.id,
     );
-    if (!account) return json(res, 409, { error: 'Este paciente ainda não ativou o portal.' });
+    if (!account || portalAccessStatus(account) !== 'active')
+      return json(res, 409, { error: 'O portal deste paciente não está ativo.' });
     const now = Date.now();
     for (const reset of store.patientPasswordResets)
       if (reset.accountId === account.id && !reset.usedAt && !reset.revokedAt)

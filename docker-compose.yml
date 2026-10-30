@@ -1,0 +1,45 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-nutritrack}
+      POSTGRES_USER: ${POSTGRES_USER:-nutritrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nutritrack} -d ${POSTGRES_DB:-nutritrack}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  test-db:
+    image: postgres:16-alpine
+    profiles: ["test"]
+    environment:
+      POSTGRES_DB: nutritrack_test
+      POSTGRES_USER: nutritrack
+      POSTGRES_PASSWORD: localtestpassword
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-nutritrack} -d nutritrack_test"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+  api:
+    build: ./apps/api-python
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nutritrack}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-nutritrack}
+      APP_ENV: ${APP_ENV:-development}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-8}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  postgres_data:

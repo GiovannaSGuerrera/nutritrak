@@ -1,5 +1,6 @@
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
+const API_BASE = (window.NUTRITRACK_API_BASE || '').replace(/\/$/, '');
 const state = {
   user: null,
   page: 'dashboard',
@@ -31,8 +32,9 @@ const dateFmt = (s) =>
 const timeFmt = (s) =>
   s ? new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
 async function api(url, opts = {}) {
-  const r = await fetch(url, {
+  const r = await fetch(`${API_BASE}${url}`, {
     ...opts,
+    credentials: 'include',
     headers: {
       'content-type': 'application/json',
       ...(state.workspaceId ? { 'x-workspace-id': state.workspaceId } : {}),
@@ -152,7 +154,7 @@ async function dashboard() {
       ? 'O gráfico aparecerá com os primeiros cadastros'
       : 'Sem novos cadastros nos últimos seis meses';
   $('#content').innerHTML =
-    `<div class="dashboard-heading"><div><p class="eyebrow">NUTRITRACK PRO</p><h1>Visão geral</h1><p>Uma visão clara para cuidar melhor de cada jornada.</p></div><button class="button outline-button" data-go="patients">Ver pacientes <span>›</span></button></div><section class="stats">${cards.map((c) => `<article class="stat-card"><div class="stat-top">${c[0]}<span class="stat-icon ${c[4]}">${c[3]}</span></div><div class="stat-value">${c[1]}</div><div class="stat-hint">${c[2]}</div></article>`).join('')}</section><section class="panel chart-panel"><div class="panel-head"><div><h2>Novos pacientes</h2><p>Cadastros por mês, calculados do seu histórico</p></div><span class="period-pill">Últimos 6 meses</span></div>${d.newPatientsByMonth.some((m) => m.total > 0) ? newPatientsChart(d.newPatientsByMonth) : `<div class="chart-empty"><div class="chart-empty-icon">♧</div><strong>${chartEmpty}</strong><p>Os totais mensais são calculados a partir do histórico<br class="desktop-break"> de cadastros do seu consultório.</p></div>`}</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Consultas agendadas em breve</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((a) => `<div class="appointment-row"><div class="time-block">${timeFmt(a.start)}</div><div><div class="row-primary">${esc(a.patientName)}</div><div class="row-secondary">${dateFmt(a.start)} · ${esc(a.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>`}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Movimentações do consultório</p></div></div>${d.recent.length ? d.recent.map((a) => `<div class="activity-row"><div class="avatar">${a.type === 'patient' ? '♧' : '•'}</div><div><div class="row-primary">${{ patient_created: 'Paciente cadastrado', patient_updated: 'Cadastro atualizado', patient_portal_activated: 'Portal do paciente ativado', assessment_created: 'Avaliação registrada', appointment_created: 'Consulta agendada', goal_created: 'Meta criada' }[a.action] || 'Atividade registrada'}</div><div class="row-secondary">${dateFmt(a.at)}</div></div></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma atividade ainda</strong>Suas movimentações aparecerão aqui.</div>`}</section></div><div class="action-grid"><button class="quick-action" id="quick-patient"><span>＋</span><strong>Cadastrar paciente</strong><small>Inicie um acompanhamento</small></button><button class="quick-action" id="quick-appointment"><span>▦</span><strong>Agendar consulta</strong><small>Organize seus próximos horários</small></button><button class="quick-action" id="quick-assessment"><span>↗</span><strong>Registrar avaliação</strong><small>Atualize medidas corporais</small></button></div>`;
+    `<div class="dashboard-heading"><div><p class="eyebrow">NUTRITRACK</p><h1>Visão geral</h1><p>Acompanhe pacientes, consultas e metas.</p></div><button class="button outline-button" data-go="patients">Ver pacientes <span>›</span></button></div><section class="stats">${cards.map((c) => `<article class="stat-card"><div class="stat-top">${c[0]}<span class="stat-icon ${c[4]}">${c[3]}</span></div><div class="stat-value">${c[1]}</div><div class="stat-hint">${c[2]}</div></article>`).join('')}</section><section class="panel chart-panel"><div class="panel-head"><div><h2>Novos pacientes</h2><p>Cadastros por mês, calculados do seu histórico</p></div><span class="period-pill">Últimos 6 meses</span></div>${d.newPatientsByMonth.some((m) => m.total > 0) ? newPatientsChart(d.newPatientsByMonth) : `<div class="chart-empty"><div class="chart-empty-icon">♧</div><strong>${chartEmpty}</strong><p>Os totais mensais são calculados a partir do histórico<br class="desktop-break"> de cadastros do seu consultório.</p></div>`}</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Consultas agendadas em breve</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((a) => `<div class="appointment-row"><div class="time-block">${timeFmt(a.start)}</div><div><div class="row-primary">${esc(a.patientName)}</div><div class="row-secondary">${dateFmt(a.start)} · ${esc(a.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>`}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Movimentações do consultório</p></div></div>${d.recent.length ? d.recent.map((a) => `<div class="activity-row"><div class="avatar">${a.type === 'patient' ? '♧' : '•'}</div><div><div class="row-primary">${{ patient_created: 'Paciente cadastrado', patient_updated: 'Cadastro atualizado', patient_portal_activated: 'Portal do paciente ativado', assessment_created: 'Avaliação registrada', appointment_created: 'Consulta agendada', goal_created: 'Meta criada' }[a.action] || 'Atividade registrada'}</div><div class="row-secondary">${dateFmt(a.at)}</div></div></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma atividade ainda</strong>Suas movimentações aparecerão aqui.</div>`}</section></div><div class="action-grid"><button class="quick-action" id="quick-patient"><span>＋</span><strong>Cadastrar paciente</strong><small>Inicie um acompanhamento</small></button><button class="quick-action" id="quick-appointment"><span>▦</span><strong>Agendar consulta</strong><small>Organize seus próximos horários</small></button><button class="quick-action" id="quick-assessment"><span>↗</span><strong>Registrar avaliação</strong><small>Atualize medidas corporais</small></button></div>`;
   $('#quick-patient').onclick = () => patientModal();
   $('#quick-appointment').onclick = () => appointmentModal();
   $('#quick-assessment').onclick = () => assessmentModal();
@@ -169,16 +171,16 @@ async function clinicDashboard() {
   ]);
   const cards = [
     ['Pacientes cadastrados', d.patients, `${d.newThisMonth} novos neste mês`, '♧', 'mint'],
-    ['Pacientes ativos', d.activePatients, 'Cadastros ativos neste workspace', '♡', 'honey'],
+    ['Pacientes ativos', d.activePatients, 'Pacientes com cadastro ativo', '♡', 'honey'],
   ];
   if (canManageMembers) {
-    cards.push(['Membros da equipe', membersResult.members.length, 'Memberships ativos', '♙', 'peach']);
+    cards.push(['Membros da equipe', membersResult.members.length, 'Pessoas com acesso ativo', '♙', 'peach']);
     cards.push(['Convites pendentes', invitationsResult.invitations.filter((item) => item.status === 'pending').length, 'Aguardando aceite', '✉', 'mint']);
   }
-  if (canAssign) cards.push(['Nutricionistas', cliniciansResult.clinicians.length, 'Profissionais clínicos do workspace', '◎', 'honey']);
-  $('#content').innerHTML = `${heading('Visão geral', 'Resumo administrativo deste consultório.')}
+  if (canAssign) cards.push(['Nutricionistas', cliniciansResult.clinicians.length, 'Nutricionistas ativos', '◎', 'honey']);
+  $('#content').innerHTML = `${heading('Visão geral', 'Acompanhe pacientes, profissionais e convites do consultório.')}
     <section class="stats">${cards.map((card) => `<article class="stat-card"><div class="stat-top">${card[0]}<span class="stat-icon ${card[4]}">${card[3]}</span></div><div class="stat-value">${card[1]}</div><div class="stat-hint">${esc(card[2])}</div></article>`).join('')}</section>
-    <div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Agenda do workspace</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((item) => `<div class="appointment-row"><div class="time-block">${timeFmt(item.start)}</div><div><div class="row-primary">${esc(item.patientName)}</div><div class="row-secondary">${dateFmt(item.start)} · ${esc(item.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : '<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Alterações deste workspace</p></div></div>${d.recent.length ? d.recent.map((item) => `<div class="activity-row"><div class="avatar">•</div><div><div class="row-primary">${esc(item.action.replaceAll('_', ' '))}</div><div class="row-secondary">${dateFmt(item.at)}</div></div></div>`).join('') : '<div class="empty-inline">Nenhuma atividade administrativa ainda.</div>'}</section></div>`;
+    <div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Agenda do consultório</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((item) => `<div class="appointment-row"><div class="time-block">${timeFmt(item.start)}</div><div><div class="row-primary">${esc(item.patientName)}</div><div class="row-secondary">${dateFmt(item.start)} · ${esc(item.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : '<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Atividade do consultório</p></div></div>${d.recent.length ? d.recent.map((item) => `<div class="activity-row"><div class="avatar">•</div><div><div class="row-primary">${esc(item.action.replaceAll('_', ' '))}</div><div class="row-secondary">${dateFmt(item.at)}</div></div></div>`).join('') : '<div class="empty-inline">Nenhuma atividade administrativa ainda.</div>'}</section></div>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
 }
 function newPatientsChart(months) {
@@ -341,7 +343,11 @@ async function patientModal(p = null) {
   const canAssign = roles.some((role) => ['owner_admin', 'operations_admin'].includes(role));
   const isClinician = roles.includes('clinician');
   const detail = p ? await api(`/api/patients/${p.id}`) : null;
-  const clinicians = (await api('/api/clinicians')).clinicians;
+  const clinicians = canAssign
+    ? (await api('/api/clinicians')).clinicians
+    : isClinician && !p
+      ? [{ id: state.user.id, name: state.user.name, email: state.user.email }]
+      : [];
   const currentAssignments = detail?.assignments || [];
   const primary = currentAssignments.find((item) => item.kind === 'primary')?.professionalId || '';
   const support = currentAssignments
@@ -462,22 +468,47 @@ async function patientProfile(id) {
   if (d.clinicalAccess) $('#add-assessment').onclick = () => assessmentModal(p.id);
   const portalButton = document.createElement('button');
   const patientHasEmail = /^\S+@\S+\.\S+$/.test(p.email || '');
-  portalButton.className = d.portal?.enabled ? 'button portal-enabled' : 'button subtle';
-  portalButton.textContent = d.portal?.enabled
-    ? 'Portal ativo'
+  const portalExists = d.portal?.exists ?? !!d.portal?.enabled;
+  const portalStatus = d.portal?.status || (d.portal?.enabled ? 'active' : null);
+  portalButton.className = portalStatus === 'active' ? 'button portal-enabled' : 'button subtle';
+  portalButton.textContent = portalExists
+    ? portalStatus === 'active'
+      ? 'Portal ativo'
+      : portalStatus === 'suspended'
+        ? 'Portal suspenso'
+        : 'Acesso revogado'
     : patientHasEmail
       ? '＋ Convidar para o portal'
       : 'Informe e-mail para convidar';
-  portalButton.disabled = !!d.portal?.enabled || !patientHasEmail;
-  if (!d.portal?.enabled && patientHasEmail)
+  portalButton.disabled = portalExists || !patientHasEmail;
+  if (!portalExists && patientHasEmail)
     portalButton.onclick = () => createPatientInvitation(p.id, p.name);
-  if (!patientHasEmail && !d.portal?.enabled)
+  if (!patientHasEmail && !portalExists)
     portalButton.title = 'Cadastre um e-mail válido no perfil do paciente antes do convite.';
   const profileActions = $('.page-heading>div:last-child');
   profileActions.classList.add('patient-profile-actions');
   portalButton.hidden = !d.clinicalAccess;
   profileActions.prepend(portalButton);
-  if (d.portal?.enabled) {
+  if (portalExists && portalStatus !== 'revoked') {
+    const accessButton = document.createElement('button');
+    accessButton.className = portalStatus === 'suspended' ? 'button primary' : 'button subtle';
+    accessButton.textContent = portalStatus === 'suspended' ? 'Reativar portal' : 'Suspender portal';
+    accessButton.hidden = !d.clinicalAccess;
+    accessButton.onclick = () => updatePatientPortalAccess(
+      p.id,
+      portalStatus === 'suspended' ? 'active' : 'suspended',
+      p.name,
+    );
+    profileActions.prepend(accessButton);
+
+    const revokeButton = document.createElement('button');
+    revokeButton.className = 'button subtle';
+    revokeButton.textContent = 'Revogar acesso';
+    revokeButton.hidden = !d.clinicalAccess;
+    revokeButton.onclick = () => updatePatientPortalAccess(p.id, 'revoked', p.name);
+    profileActions.prepend(revokeButton);
+  }
+  if (portalStatus === 'active') {
     const resetButton = document.createElement('button');
     resetButton.className = 'button subtle';
     resetButton.textContent = 'Redefinir senha do portal';
@@ -496,6 +527,26 @@ async function patientProfile(id) {
   );
   renderPatientTab('overview');
 }
+async function updatePatientPortalAccess(patientId, status, patientName) {
+  const messages = {
+    active: `Reativar o acesso ao portal de ${patientName}? A paciente precisará entrar novamente.`,
+    suspended: `Suspender o acesso ao portal de ${patientName}? As sessões atuais serão encerradas.`,
+    revoked: `Revogar permanentemente o acesso ao portal de ${patientName}? Esta ação não poderá ser desfeita.`,
+  };
+  if (!window.confirm(messages[status])) return;
+  try {
+    await api(`/api/patients/${encodeURIComponent(patientId)}/portal-access`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    });
+    toast(status === 'active' ? 'Acesso ao portal reativado.' : status === 'suspended'
+      ? 'Acesso ao portal suspenso.'
+      : 'Acesso ao portal revogado.');
+    await patientProfile(patientId);
+  } catch (error) {
+    toast(error.message, true);
+  }
+}
 function renderPatientTab(tab) {
   const d = state.patientData,
     p = d.patient,
@@ -504,7 +555,7 @@ function renderPatientTab(tab) {
   const box = $('#patient-tab-content');
   if (tab === 'overview') {
     if (!d.clinicalAccess) {
-      box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Consultas neste workspace</small><strong>${d.appointments.length}</strong></div></div><section class="panel"><div class="panel-head"><div><h2>Agenda</h2><p>Informações clínicas são exibidas somente ao profissional atribuído.</p></div></div>${d.appointments.length ? d.appointments.map((appointment) => `<div class="appointment-row"><div class="time-block">${timeFmt(appointment.start)}</div><div class="row-primary">${dateFmt(appointment.start)} · ${esc(appointment.type)}</div><span class="status-pill">${esc(appointment.status)}</span></div>`).join('') : '<div class="empty-inline">Nenhuma consulta cadastrada.</div>'}<div style="margin-top:17px"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section>`;
+      box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Consultas neste consultório</small><strong>${d.appointments.length}</strong></div></div><section class="panel"><div class="panel-head"><div><h2>Agenda</h2><p>Informações clínicas são exibidas somente ao profissional atribuído.</p></div></div>${d.appointments.length ? d.appointments.map((appointment) => `<div class="appointment-row"><div class="time-block">${timeFmt(appointment.start)}</div><div class="row-primary">${dateFmt(appointment.start)} · ${esc(appointment.type)}</div><span class="status-pill">${esc(appointment.status)}</span></div>`).join('') : '<div class="empty-inline">Nenhuma consulta cadastrada.</div>'}<div style="margin-top:17px"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section>`;
       $('#profile-appointment').onclick = () => appointmentModal(p.id);
       return;
     }
@@ -695,7 +746,7 @@ function showOnboardingShell() {
 }
 async function workspaceSetup() {
   showOnboardingShell();
-  $('#content').innerHTML = `<section class="panel onboarding-panel"><p class="eyebrow">ANTES DO PAINEL</p><h1>Como você vai usar o NutriTrack?</h1><p class="muted">Escolha o consultório certo para sua conta. O painel ficará disponível depois desta etapa.</p><div class="onboarding-options"><article class="onboarding-option"><p class="eyebrow">CONSULTÓRIO PRÓPRIO</p><h2>Trabalho de forma independente</h2><p>Informe o nome do consultório. Você será sua proprietária e poderá gerenciar a equipe.</p><form id="independent-workspace-form"><div class="field"><label for="independent-workspace-name">Nome do consultório</label><input id="independent-workspace-name" name="name" required maxlength="120" placeholder="Ex.: Consultório Ana Maria"></div><label class="onboarding-checkbox"><input type="checkbox" name="clinician"><span>Também vou atender pacientes e preciso de acesso clínico.</span></label><button class="button primary full">Criar meu consultório</button><p class="form-error" id="independent-error"></p></form></article><article class="onboarding-option"><p class="eyebrow">EQUIPE EXISTENTE</p><h2>Entrei por convite</h2><p>Use o link ou código compartilhado pela gerente. Você recebe somente o papel informado no convite.</p><form id="join-workspace-form"><div class="field"><label for="workspace-invite-input">Link ou código do convite</label><input id="workspace-invite-input" name="invite" required placeholder="Cole o link recebido"></div><button class="button full">Entrar no consultório</button><p class="form-error" id="join-error"></p></form></article></div></section>`;
+  $('#content').innerHTML = `<section class="panel onboarding-panel"><p class="eyebrow">CONFIGURE SEU ACESSO</p><h1>Como você vai usar o NutriTrack?</h1><p class="muted">Crie seu consultório ou entre em uma equipe por convite.</p><div class="onboarding-options"><article class="onboarding-option"><p class="eyebrow">CONSULTÓRIO PRÓPRIO</p><h2>Atendo por conta própria</h2><p>Escolha um nome para o consultório. Depois, você poderá convidar outras pessoas para a equipe.</p><form id="independent-workspace-form"><div class="field"><label for="independent-workspace-name">Nome do consultório</label><input id="independent-workspace-name" name="name" required maxlength="120" placeholder="Ex.: Consultório Ana Maria"></div><label class="onboarding-checkbox"><input type="checkbox" name="clinician"><span>Também vou atender pacientes e preciso de acesso clínico.</span></label><button class="button primary full">Criar meu consultório</button><p class="form-error" id="independent-error"></p></form></article><article class="onboarding-option"><p class="eyebrow">ENTRAR EM UMA EQUIPE</p><h2>Tenho um convite</h2><p>Cole o link enviado pela responsável pelo consultório. Seu acesso seguirá o convite.</p><form id="join-workspace-form"><div class="field"><label for="workspace-invite-input">Link do convite</label><input id="workspace-invite-input" name="invite" required placeholder="Cole aqui o link recebido"></div><button class="button full">Aceitar convite</button><p class="form-error" id="join-error"></p></form></article></div></section>`;
   $('#independent-workspace-form').onsubmit = async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
@@ -751,7 +802,7 @@ async function legacyWorkspaceOnboarding() {
 function createWorkspaceModal() {
   openModal(
     'Criar clínica',
-    'Crie um workspace independente. Pacientes e históricos não são compartilhados entre workspaces.',
+    'Crie um consultório independente. Os pacientes e históricos ficam separados dos outros consultórios.',
     `${field('name', 'Nome da clínica', 'text', { required: true, wide: true, placeholder: 'Ex.: Clínica Nutrição Viva' })}`,
     'Criar clínica',
     async ({ name }) => {
@@ -778,14 +829,14 @@ async function teamPage() {
   const { members } = await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members`);
   const teamMembers = members.filter((member) => !member.roles.includes('clinician'));
   const isOwner = state.activeRoles.includes('owner_admin');
-  $('#content').innerHTML = `${heading('Equipe', 'Gerencie administradoras operacionais e colaboradores sem perfil clínico.', `<button class="button primary" data-go="invitations">＋ Abrir convites</button>`)}
-    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Equipe administrativa</h2><p>${teamMembers.length} membro${teamMembers.length === 1 ? '' : 's'} neste workspace</p></div></div>${teamMembers.length ? teamMembers.map((member) => `<article class="team-member"><div class="avatar">${esc(member.name.trim()[0]?.toUpperCase() || '?')}</div><div class="team-member-copy"><strong>${esc(member.name)}</strong><small>${esc(member.email)} · ${member.roles.map((role) => esc(roleNames[role] || role)).join(', ')}</small></div>${member.userId === state.user.id ? '<span class="status-pill">Você</span>' : `<div class="team-member-actions"><button class="button" data-roles="${esc(member.id)}">Papéis</button><button class="button subtle" data-remove-member="${esc(member.id)}">Remover</button></div>`}</article>`).join('') : '<div class="empty-inline">Não há colaboradores administrativos além dos profissionais clínicos.</div>'}</section>`;
+  $('#content').innerHTML = `${heading('Equipe', 'Gerencie quem cuida da administração deste consultório.', `<button class="button primary" data-go="invitations">＋ Ver convites</button>`)}
+    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Equipe administrativa</h2><p>${teamMembers.length} membro${teamMembers.length === 1 ? '' : 's'} na equipe deste consultório</p></div></div>${teamMembers.length ? teamMembers.map((member) => `<article class="team-member"><div class="avatar">${esc(member.name.trim()[0]?.toUpperCase() || '?')}</div><div class="team-member-copy"><strong>${esc(member.name)}</strong><small>${esc(member.email)} · ${member.roles.map((role) => esc(roleNames[role] || role)).join(', ')}</small></div>${member.userId === state.user.id ? '<span class="status-pill">Você</span>' : `<div class="team-member-actions"><button class="button" data-roles="${esc(member.id)}">Papéis</button><button class="button subtle" data-remove-member="${esc(member.id)}">Remover</button></div>`}</article>`).join('') : '<div class="empty-inline">Não há colaboradores administrativos além dos profissionais clínicos.</div>'}</section>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
   $$('[data-roles]').forEach((button) => (button.onclick = () => {
     const member = members.find((item) => item.id === button.dataset.roles);
     const allowed = ['clinician', 'assistant', ...(isOwner ? ['operations_admin', 'owner_admin'] : [])];
     const checks = allowed.map((role) => `<label class="legacy-patient"><input type="checkbox" name="role" value="${role}" ${member.roles.includes(role) ? 'checked' : ''}><span>${esc(roleNames[role])}</span></label>`).join('');
-    openModal('Papéis do membro', `Papéis atuais de ${esc(member.name)}. Acesso clínico a um paciente ainda exige atribuição explícita.`, checks, 'Salvar papéis', async ({ role }) => {
+    openModal('Papéis do membro', `Acessos atuais de ${esc(member.name)}. Acesso clínico a um paciente ainda exige atribuição explícita.`, checks, 'Salvar papéis', async ({ role }) => {
       const roles = Array.isArray(role) ? role : role ? [role] : [];
       if (!roles.length) throw Error('Selecione pelo menos um papel.');
       await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members/${encodeURIComponent(member.id)}`, { method: 'PATCH', body: JSON.stringify({ roles }) });
@@ -796,19 +847,19 @@ async function teamPage() {
   }));
   $$('[data-remove-member]').forEach((button) => (button.onclick = async () => {
     const member = members.find((item) => item.id === button.dataset.removeMember);
-    if (!confirm(`Remover ${member.name} deste workspace?`)) return;
+    if (!confirm(`Remover ${member.name} da equipe deste consultório?`)) return;
     try {
       await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members/${encodeURIComponent(member.id)}`, { method: 'DELETE' });
-      toast('Membro removido deste workspace');
+      toast('Acesso removido do consultório');
       await teamPage();
     } catch (error) { toast(error.message, true); }
   }));
 }
 async function professionalsPage() {
   const { clinicians } = await api('/api/clinicians');
-  $('#content').innerHTML = `${heading('Profissionais', 'Nutricionistas associados a este workspace.', `<button class="button primary" data-go="invitations">＋ Convidar nutricionista</button>`)}
-    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Nutricionistas</h2><p>O prontuário continua limitado às atribuições explícitas por paciente.</p></div></div>${clinicians.length ? clinicians.map((person) => `<article class="team-member"><div class="avatar">${esc(person.name.trim()[0]?.toUpperCase() || '?')}</div><div class="team-member-copy"><strong>${esc(person.name)}</strong><small>${esc(person.email)} · ${person.assignedPatientCount} paciente${person.assignedPatientCount === 1 ? '' : 's'} atribuído${person.assignedPatientCount === 1 ? '' : 's'}</small></div></article>`).join('') : '<div class="empty-inline">Nenhum nutricionista foi convidado para esta clínica.</div>'}</section>
-    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Atribuições clínicas</h2><p>Defina responsáveis principais e profissionais de apoio dentro do perfil administrativo do paciente.</p></div><button class="button" data-go="patients">Abrir pacientes</button></div></section>`;
+  $('#content').innerHTML = `${heading('Profissionais', 'Nutricionistas que atendem neste consultório.', `<button class="button primary" data-go="invitations">＋ Convidar nutricionista</button>`)}
+    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Nutricionistas</h2><p>Cada prontuário fica disponível somente para os profissionais designados.</p></div></div>${clinicians.length ? clinicians.map((person) => `<article class="team-member"><div class="avatar">${esc(person.name.trim()[0]?.toUpperCase() || '?')}</div><div class="team-member-copy"><strong>${esc(person.name)}</strong><small>${esc(person.email)} · ${person.assignedPatientCount} paciente${person.assignedPatientCount === 1 ? '' : 's'} atribuído${person.assignedPatientCount === 1 ? '' : 's'}</small></div></article>`).join('') : '<div class="empty-inline">Nenhum nutricionista foi convidado para esta clínica.</div>'}</section>
+    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Atribuições clínicas</h2><p>Escolha quem acompanha cada paciente na tela de cadastro.</p></div><button class="button" data-go="patients">Abrir pacientes</button></div></section>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
 }
 async function invitationsPage() {
@@ -819,8 +870,8 @@ async function invitationsPage() {
   const url = `/api/workspaces/${encodeURIComponent(state.workspaceId)}/invitations`;
   const { invitations } = await api(url);
   const isOwner = state.activeRoles.includes('owner_admin');
-  $('#content').innerHTML = `${heading('Convites', 'Convide pessoas e acompanhe o estado de acesso ao workspace.')}
-    <section class="panel team-invite-panel"><div class="panel-head"><div><h2>Novo convite</h2><p>O link é de uso único e vence em sete dias. Compartilhe manualmente com o e-mail convidado.</p></div></div><form id="workspace-invite-form" class="team-invite-form"><div class="field"><label for="invite-email">E-mail da pessoa</label><input id="invite-email" name="email" required type="email" autocomplete="email" placeholder="pessoa@exemplo.com"></div><div class="field"><label for="invite-role">Papel inicial</label><select id="invite-role" name="role" required><option value="clinician">Nutricionista</option><option value="assistant">Assistente sem prontuário</option>${isOwner ? '<option value="operations_admin">Administradora operacional</option>' : ''}</select></div><button class="button primary">Gerar convite</button></form><div id="invite-feedback" class="invite-feedback" role="status" aria-live="polite"></div><div id="invite-result"></div></section>
+  $('#content').innerHTML = `${heading('Convites', 'Convide pessoas para participar deste consultório.')}
+    <section class="panel team-invite-panel"><div class="panel-head"><div><h2>Novo convite</h2><p>O convite pode ser usado uma vez e expira em sete dias. Envie o link à pessoa convidada pelo e-mail informado.</p></div></div><form id="workspace-invite-form" class="team-invite-form"><div class="field"><label for="invite-email">E-mail da pessoa</label><input id="invite-email" name="email" required type="email" autocomplete="email" placeholder="pessoa@exemplo.com"></div><div class="field"><label for="invite-role">Acesso inicial</label><select id="invite-role" name="role" required><option value="clinician">Nutricionista</option><option value="assistant">Assistente sem prontuário</option>${isOwner ? '<option value="operations_admin">Administradora operacional</option>' : ''}</select></div><button class="button primary">Criar convite</button></form><div id="invite-feedback" class="invite-feedback" role="status" aria-live="polite"></div><div id="invite-result"></div></section>
     <section class="panel team-members-panel"><div class="panel-head"><div><h2>Convites enviados</h2><p>${invitations.length} registro${invitations.length === 1 ? '' : 's'} de convite</p></div></div>${invitations.length ? invitations.map((invite) => `<article class="team-member"><div class="team-member-copy"><strong>${esc(invite.email)}</strong><small>${invite.roles.map((role) => esc(roleNames[role] || role)).join(', ')} · ${invite.status === 'pending' ? 'Pendente' : invite.status === 'accepted' ? 'Aceito' : invite.status === 'expired' ? 'Expirado' : 'Cancelado'} · vence ${dateFmt(invite.expiresAt)}</small></div>${invite.status === 'pending' ? `<button class="button subtle" data-revoke-invite="${esc(invite.id)}">Cancelar convite</button>` : ''}</article>`).join('') : '<div class="empty-inline">Nenhum convite foi criado.</div>'}</section>`;
   const inviteForm = $('#workspace-invite-form');
   inviteForm.onsubmit = async (event) => {
@@ -836,7 +887,7 @@ async function invitationsPage() {
     try {
       const response = await api(url, { method: 'POST', body: JSON.stringify({ email: form.get('email'), role: form.get('role') }) });
       const inviteUrl = `${location.origin}/?workspace_invite=${encodeURIComponent(response.token)}`;
-      result.innerHTML = `<div class="invite-created"><strong>Convite criado · vence ${dateFmt(response.expiresAt)}</strong><input id="generated-invite-link" readonly aria-label="Link do convite" value="${esc(inviteUrl)}"><button type="button" class="button" id="copy-invite-link">Copiar link</button><p>O link não foi enviado automaticamente. Ele só pode ser usado pela pessoa convidada.</p></div>`;
+      result.innerHTML = `<div class="invite-created"><strong>Convite criado · vence ${dateFmt(response.expiresAt)}</strong><input id="generated-invite-link" readonly aria-label="Link do convite" value="${esc(inviteUrl)}"><button type="button" class="button" id="copy-invite-link">Copiar link</button><p>Envie o link à pessoa convidada. Ele funciona apenas para o e-mail informado.</p></div>`;
       $('#copy-invite-link').onclick = async () => {
         const linkInput = $('#generated-invite-link');
         try {
@@ -849,7 +900,7 @@ async function invitationsPage() {
         }
       };
       feedback.textContent = `Convite para ${form.get('email')} criado com sucesso.`;
-      event.currentTarget.reset();
+      inviteForm.reset();
       const fresh = await api(url);
       $('#content').querySelector('.team-members-panel').outerHTML = `<section class="panel team-members-panel"><div class="panel-head"><div><h2>Convites enviados</h2><p>${fresh.invitations.length} registro${fresh.invitations.length === 1 ? '' : 's'} de convite</p></div></div>${fresh.invitations.map((invite) => `<article class="team-member"><div class="team-member-copy"><strong>${esc(invite.email)}</strong><small>${invite.roles.map((role) => esc(roleNames[role] || role)).join(', ')} · ${invite.status === 'pending' ? 'Pendente' : invite.status === 'accepted' ? 'Aceito' : invite.status === 'expired' ? 'Expirado' : 'Cancelado'} · vence ${dateFmt(invite.expiresAt)}</small></div>${invite.status === 'pending' ? `<button class="button subtle" data-revoke-invite="${esc(invite.id)}">Cancelar convite</button>` : ''}</article>`).join('')}</section>`;
       bindInvitationRevocation(url);
@@ -877,12 +928,12 @@ function bindInvitationRevocation(url) {
 }
 async function clinicSettingsPage() {
   if (!state.activeRoles.includes('owner_admin')) {
-    $('#content').innerHTML = '<section class="empty"><h3>Acesso restrito</h3><p>Somente a proprietária pode alterar os dados deste workspace.</p></section>';
+    $('#content').innerHTML = '<section class="empty"><h3>Acesso restrito</h3><p>Somente a proprietária pode alterar os dados do consultório.</p></section>';
     return;
   }
   const workspace = state.workspaces.find((item) => item.id === state.workspaceId);
-  $('#content').innerHTML = `${heading('Clínica ou consultório', 'Informações administrativas deste workspace.')}
-    <section class="panel team-invite-panel"><form id="clinic-settings-form"><div class="field"><label for="clinic-name">Nome exibido</label><input id="clinic-name" name="name" maxlength="120" required value="${esc(workspace.name)}"></div><p class="row-secondary">Tipo: ${workspace.type === 'clinic' ? 'Clínica ou consultório' : 'Consultório individual'}</p><div class="modal-actions"><button class="button primary">Salvar alterações</button></div><p id="clinic-settings-feedback" class="form-error" role="status"></p></form></section>`;
+  $('#content').innerHTML = `${heading('Clínica ou consultório', 'Atualize os dados deste consultório.')}
+    <section class="panel team-invite-panel"><form id="clinic-settings-form"><div class="field"><label for="clinic-name">Nome do consultório</label><input id="clinic-name" name="name" maxlength="120" required value="${esc(workspace.name)}"></div><p class="row-secondary">Tipo: ${workspace.type === 'clinic' ? 'Clínica ou consultório' : 'Consultório individual'}</p><div class="modal-actions"><button class="button primary">Salvar alterações</button></div><p id="clinic-settings-feedback" class="form-error" role="status"></p></form></section>`;
   $('#clinic-settings-form').onsubmit = async (event) => {
     event.preventDefault();
     try {
@@ -895,8 +946,8 @@ async function clinicSettingsPage() {
 }
 async function permissionsPage() {
   const { roles } = await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/roles`);
-  $('#content').innerHTML = `${heading('Papéis e permissões', 'Papéis padrão disponíveis neste workspace.')}
-    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Permissões por papel</h2><p>Alterar papéis de membros não remove a exigência de atribuição clínica por paciente.</p></div></div><div class="permission-role-list">${roles.map((role) => `<article class="permission-role"><h3>${esc(role.name)}</h3><ul>${role.permissions.map((permission) => `<li>${esc(permission)}</li>`).join('')}</ul></article>`).join('')}</div><button class="button" data-go="team">Gerenciar papéis dos membros</button></section>`;
+  $('#content').innerHTML = `${heading('Papéis e permissões', 'Veja o que cada função pode fazer no consultório.')}
+    <section class="panel team-members-panel"><div class="panel-head"><div><h2>Acessos por função</h2><p>Mesmo com acesso clínico, cada profissional só vê os prontuários que lhe foram atribuídos.</p></div></div><div class="permission-role-list">${roles.map((role) => `<article class="permission-role"><h3>${esc(role.name)}</h3><ul>${role.permissions.map((permission) => `<li>${esc(permission)}</li>`).join('')}</ul></article>`).join('')}</div><button class="button" data-go="team">Gerenciar acessos da equipe</button></section>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
 }
 function availableContexts() {
@@ -929,10 +980,10 @@ function contextDisplay(context) {
 function contextSelector() {
   showOnboardingShell();
   const contexts = availableContexts();
-  $('#content').innerHTML = `<section class="panel context-selector-panel"><p class="eyebrow">SELEÇÃO DE PERFIL</p><h1>Em qual perfil você deseja entrar?</h1><p class="muted">A sessão continuará ativa ao trocar de contexto. O acesso clínico ainda depende das permissões e atribuições do seu perfil.</p>${contexts.length ? `<div class="context-options">${contexts.map((context, index) => {
+  $('#content').innerHTML = `<section class="panel context-selector-panel"><p class="eyebrow">SELEÇÃO DE PERFIL</p><h1>Em qual perfil você deseja entrar?</h1><p class="muted">Você pode trocar de perfil sem sair da conta. O acesso aos prontuários depende da sua função e dos pacientes atribuídos a você.</p>${contexts.length ? `<div class="context-options">${contexts.map((context, index) => {
     const display = contextDisplay(context);
     return `<article class="context-option"><span class="context-option-icon" aria-hidden="true">${display.icon}</span><div><h2>${esc(display.title)}</h2><p>${esc(display.subtitle)}</p></div><button class="button primary" data-context-index="${index}">Entrar neste perfil</button></article>`;
-  }).join('')}</div>` : `<div class="empty-inline">Sua conta não possui um contexto com permissões ativas. Entre em contato com a gerente do workspace.</div>`}<p class="context-selector-error" id="context-selector-error" role="alert"></p></section>`;
+  }).join('')}</div>` : `<div class="empty-inline">Não encontramos um perfil ativo para sua conta. Peça à responsável pelo consultório para conferir seu acesso.</div>`}<p class="context-selector-error" id="context-selector-error" role="alert"></p></section>`;
   $$('[data-context-index]').forEach((button) => (button.onclick = async () => {
     button.disabled = true;
     try {

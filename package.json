@@ -10,6 +10,10 @@
     "dev": "pnpm --filter @nutritrack/api dev",
     "start": "pnpm --filter @nutritrack/api start",
     "test": "pnpm --filter @nutritrack/api test",
+    "dev:python": "docker compose up --build",
+    "dev:web": "node apps/web/server.mjs",
+    "db:migrate": "docker compose run --rm api alembic upgrade head",
+    "test:python": "docker compose --profile test up -d --wait test-db && docker compose --profile test run --build --rm --no-deps -e DATABASE_URL=postgresql+psycopg://nutritrack:localtestpassword@test-db:5432/nutritrack_test api pytest -q",
     "format": "prettier --write \"apps/**/*.{js,css,html,json}\" \".vscode/**/*.json\" \"*.json\" \"pnpm-workspace.yaml\""
   },
   "devDependencies": {

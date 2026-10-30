@@ -1,13 +1,20 @@
 const portalRoot = document.querySelector('#patient-portal');
+const PORTAL_API_BASE = (window.NUTRITRACK_API_BASE || '').replace(/\/$/, '');
 const portalEsc = (value) =>
   String(value ?? '').replace(
     /[&<>"']/g,
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c],
   );
 async function portalApi(url, options = {}) {
-  const response = await fetch(url, {
+  const workspaceId = localStorage.getItem('nutritrack-workspace-id');
+  const response = await fetch(`${PORTAL_API_BASE}${url}`, {
     ...options,
-    headers: { 'content-type': 'application/json', ...(options.headers || {}) },
+    credentials: 'include',
+    headers: {
+      'content-type': 'application/json',
+      ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
+      ...(options.headers || {}),
+    },
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {

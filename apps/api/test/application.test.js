@@ -16,6 +16,13 @@ function freePort() {
     });
   });
 }
+function stopServer(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+  return new Promise((resolve) => {
+    child.once('exit', resolve);
+    child.kill();
+  });
+}
 test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', async (t) => {
   const dir = path.join(__dirname, '.runtime-data');
   await fs.rm(dir, { recursive: true, force: true });
@@ -28,10 +35,10 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   let childError = '';
   child.stderr.on('data', (d) => (childError += d));
   t.after(async () => {
-    child.kill();
+    await stopServer(child);
     await fs.rm(dir, { recursive: true, force: true });
   });
-  let base = `http://localhost:${port}`;
+  let base = `http://127.0.0.1:${port}`;
   let ready = false,
     lastError = '';
   for (let i = 0; i < 60; i++) {
@@ -87,6 +94,34 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.equal(firstWorkspace.status, 201, 'profissional escolhe nome e papel antes de usar o painel');
   const firstWorkspaceId = firstWorkspace.body.workspace.id;
   workspaceByToken.set(token, firstWorkspaceId);
+  const noMembershipAccount = await call('/api/register', 'POST', {
+    name: 'Conta sem workspace',
+    email: 'sem-workspace@example.test',
+    password: 'senha-segura-sem-workspace-123',
+  });
+  assert.equal(noMembershipAccount.status, 201);
+  const noMembershipToken = noMembershipAccount.cookie.match(/nc_session=([^;]+)/)[1];
+  const memberListPath = `/api/workspaces/${firstWorkspaceId}/members`;
+  const roleListPath = `/api/workspaces/${firstWorkspaceId}/roles`;
+  workspaceByToken.set(noMembershipToken, firstWorkspaceId);
+  assert.equal((await call('/api/clinicians')).status, 401,
+    'a listagem de profissionais exige autenticação');
+  assert.equal((await call(roleListPath)).status, 401,
+    'a consulta de papéis exige autenticação');
+  assert.equal((await call(memberListPath)).status, 401,
+    'a listagem da equipe exige autenticação');
+  assert.equal((await call(memberListPath, 'GET', undefined, noMembershipToken)).status, 404,
+    'conta sem membership não pode consultar a equipe');
+  assert.equal((await call('/api/clinicians', 'GET', undefined, noMembershipToken)).status, 403,
+    'conta sem membership não pode consultar profissionais');
+  assert.equal((await call(roleListPath, 'GET', undefined, noMembershipToken)).status, 404,
+    'conta sem membership não pode consultar papéis do workspace');
+  const ownerRoles = await call(roleListPath, 'GET', undefined, token);
+  assert.equal(ownerRoles.status, 200, 'proprietária consulta as permissões disponíveis');
+  assert.ok(ownerRoles.body.roles.some((role) => role.key === 'clinician'));
+  const ownerClinicians = await call('/api/clinicians', 'GET', undefined, token);
+  assert.equal(ownerClinicians.status, 200, 'proprietária pode consultar profissionais para atribuição');
+  assert.ok(ownerClinicians.body.clinicians.some((clinician) => clinician.id === register.body.user.id));
   assert.equal((await call('/api/workspaces/select', 'POST', {
     workspaceId: firstWorkspaceId, experience: 'clinical',
   }, token)).status, 200);
@@ -122,6 +157,14 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.equal(clinicSignup.status, 201);
   assert.equal(clinicSignup.body.workspace.type, 'clinic');
   const clinicToken = clinicSignup.cookie.match(/nc_session=([^;]+)/)[1];
+  assert.equal((await call(memberListPath, 'GET', undefined, clinicToken)).status, 404,
+    'membership em outro workspace não permite consultar esta equipe');
+  assert.equal((await call(roleListPath, 'GET', undefined, clinicToken)).status, 404,
+    'membership em outro workspace não permite consultar os papéis deste workspace');
+  workspaceByToken.set(clinicToken, firstWorkspaceId);
+  assert.equal((await call('/api/clinicians', 'GET', undefined, clinicToken)).status, 403,
+    'membership em outro workspace não permite consultar profissionais deste workspace');
+  workspaceByToken.set(clinicToken, clinicSignup.body.workspace.id);
   assert.equal((await call('/api/workspaces/select', 'POST', {
     workspaceId: clinicSignup.body.workspace.id, experience: 'administrative',
   }, clinicToken)).status, 200);
@@ -218,10 +261,37 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     token,
   );
   assert.equal(invitation.status, 201);
+  assert.equal((await call('/api/patient/me')).status, 401, 'o portal exige sessão antes de devolver dados');
+  const secondPatient = await call('/api/patients', 'POST', {
+    name: 'Paciente Isolado',
+    email: 'paciente-isolado@example.test',
+    primaryProfessionalId: register.body.user.id,
+  }, token);
+  assert.equal(secondPatient.status, 201);
+  const expiringPatient = await call('/api/patients', 'POST', {
+    name: 'Paciente Convite Expirado',
+    email: 'paciente-expirado@example.test',
+    primaryProfessionalId: register.body.user.id,
+  }, token);
+  assert.equal(expiringPatient.status, 201);
+  const expiringPatientInvite = await call(
+    `/api/patients/${expiringPatient.body.patient.id}/invitations`, 'POST', {}, token,
+  );
+  assert.equal(expiringPatientInvite.status, 201);
+  assert.equal(
+    (await call('/api/patient/invitations/validate', 'POST', { token: 'token-inexistente' })).status,
+    410,
+    'token de ativação inválido é rejeitado',
+  );
   assert.equal(
     (await call('/api/patient/invitations/validate', 'POST', { token: invitation.body.token })).status,
     200,
   );
+  assert.equal((await call('/api/patient/activate', 'POST', {
+    token: invitation.body.token,
+    email: 'paciente-isolado@example.test',
+    password: 'senha-paciente-123',
+  })).status, 400, 'o token não pode ativar a conta de outro paciente');
   const activation = await call('/api/patient/activate', 'POST', {
     token: invitation.body.token,
     email: 'paciente@example.test',
@@ -230,10 +300,60 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.equal(activation.status, 201);
   assert.equal(activation.body.portal.mealPlans.length, 1);
   assert.equal(activation.body.portal.mealPlans[0].version.number, 1);
+  assert.equal(activation.body.portal.patient.name, 'Paciente Fictício');
+  assert.equal(JSON.stringify(activation.body).includes('senha-paciente-123'), false,
+    'resposta de ativação não expõe a senha');
+  assert.equal(JSON.stringify(activation.body).includes('salt'), false,
+    'resposta de ativação não expõe salt ou hash');
   const patientToken = activation.cookie.match(/nt_patient_session=([^;]+)/)[1];
   const patientPortal = await call('/api/patient/me', 'GET', undefined, patientToken, 'nt_patient_session');
   assert.equal(patientPortal.status, 200);
   assert.equal(patientPortal.body.portal.mealPlans.length, 1, 'portal omite o rascunho v2');
+  const crossPatientQuery = await call(
+    `/api/patient/me?patientId=${encodeURIComponent(secondPatient.body.patient.id)}&workspaceId=${encodeURIComponent(clinicSignup.body.workspace.id)}`,
+    'GET', undefined, patientToken, 'nt_patient_session',
+  );
+  assert.equal(crossPatientQuery.body.portal.patient.name, 'Paciente Fictício',
+    'ID enviado na URL não substitui o vínculo da sessão autenticada');
+  assert.equal(crossPatientQuery.body.portal.mealPlans[0].name, 'Plano de demonstração');
+  const secondInvitation = await call(`/api/patients/${secondPatient.body.patient.id}/invitations`, 'POST', {}, token);
+  assert.equal(secondInvitation.status, 201);
+  const secondActivation = await call('/api/patient/activate', 'POST', {
+    token: secondInvitation.body.token,
+    email: 'paciente-isolado@example.test',
+    password: 'senha-paciente-isolado-456',
+  });
+  assert.equal(secondActivation.status, 201);
+  assert.equal(secondActivation.body.portal.patient.name, 'Paciente Isolado');
+  assert.equal(secondActivation.body.portal.mealPlans.length, 0);
+  const secondPatientToken = secondActivation.cookie.match(/nt_patient_session=([^;]+)/)[1];
+  const secondPatientPortal = await call('/api/patient/me', 'GET', undefined, secondPatientToken, 'nt_patient_session');
+  assert.equal(secondPatientPortal.body.portal.patient.name, 'Paciente Isolado');
+  assert.equal(secondPatientPortal.body.portal.mealPlans.length, 0,
+    'a segunda conta não recebe planos publicados para o primeiro paciente');
+  const secondPatientAssessment = await call('/api/assessments', 'POST', {
+    patientId: secondPatient.body.patient.id,
+    date: '2026-10-28',
+    weight: '59',
+    height: '162',
+    notes: 'Avaliação sintética preservada durante a revogação.',
+  }, token);
+  assert.equal(secondPatientAssessment.status, 201);
+  const secondPatientReset = await call(
+    `/api/patients/${secondPatient.body.patient.id}/password-resets`, 'POST', {}, token,
+  );
+  assert.equal(secondPatientReset.status, 201);
+  assert.equal((await call('/api/patient/invitations/validate', 'POST', {
+    token: secondInvitation.body.token,
+  })).status, 410, 'convite utilizado não pode ser validado novamente');
+  assert.equal((await call('/api/patient/activate', 'POST', {
+    token: secondInvitation.body.token,
+    email: 'paciente-isolado@example.test',
+    password: 'senha-paciente-isolado-456',
+  })).status, 410, 'convite utilizado não pode ativar outra sessão');
+  assert.notEqual((await call(`/api/patients/${secondPatient.body.patient.id}`, 'GET', undefined,
+    patientToken, 'nt_patient_session')).status, 200,
+  'cookie do portal não autoriza a rota profissional por ID');
   assert.equal((await call('/api/dashboard', 'GET', undefined, patientToken, 'nt_patient_session')).status, 401);
 
   const reset = await call(`/api/patients/${patient.body.patient.id}/password-resets`, 'POST', {}, token);
@@ -299,6 +419,24 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   workspaceByToken.set(otherToken, firstWorkspaceId);
   const providerAccount = await call('/api/me', 'GET', undefined, otherToken);
   assert.deepEqual(providerAccount.body.workspaces[0].roles, ['clinician']);
+  assert.equal((await call(memberListPath, 'GET', undefined, otherToken)).status, 404,
+    'nutricionista sem permissão administrativa não consulta os dados da equipe');
+  assert.equal((await call(roleListPath, 'GET', undefined, otherToken)).status, 404,
+    'nutricionista não consulta a matriz administrativa de papéis');
+  assert.equal((await call('/api/clinicians', 'GET', undefined, otherToken)).status, 404,
+    'nutricionista sem permissão de atribuição não consulta a lista administrativa de profissionais');
+  const ownerMemberList = await call(memberListPath, 'GET', undefined, token);
+  assert.equal(ownerMemberList.status, 200, 'proprietária pode consultar os dados administrativos da equipe');
+  assert.ok(ownerMemberList.body.members.some((member) => member.userId === register.body.user.id));
+  const ownerMembership = ownerMemberList.body.members.find((member) => member.userId === register.body.user.id);
+  assert.ok(ownerMembership, 'a listagem contém o membership da proprietária');
+  const providerMembership = ownerMemberList.body.members.find((member) => member.userId === other.body.user.id);
+  assert.ok(providerMembership, 'a listagem administrativa inclui o nutricionista ativo');
+  assert.equal((await call(`${memberListPath}/${providerMembership.id}`, 'PATCH', {
+    roles: ['assistant'],
+  }, otherToken)).status, 404, 'nutricionista não pode alterar papéis');
+  assert.equal((await call(`${memberListPath}/${providerMembership.id}`, 'DELETE', undefined, otherToken)).status, 404,
+    'nutricionista não pode remover membros');
   assert.equal((await call('/api/workspaces', 'POST', { name: 'Workspace indevido', type: 'clinic' }, otherToken)).status, 403,
     'membro nutricionista não cria workspace');
   assert.equal(
@@ -317,6 +455,17 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.equal(providerProfile.status, 200);
   assert.equal(providerProfile.body.clinicalAccess, true);
   assert.equal(providerProfile.body.assessments.length, 1);
+  assert.equal((await call('/api/clinicians', 'GET', undefined, otherToken)).status, 404,
+    'atribuição clínica não concede acesso à lista administrativa de profissionais');
+  assert.equal((await call(roleListPath, 'GET', undefined, otherToken)).status, 404,
+    'atribuição clínica não concede acesso à matriz administrativa de papéis');
+  const clinicianCreatedPatient = await call('/api/patients', 'POST', {
+    name: 'Paciente sintético do nutricionista',
+    primaryProfessionalId: other.body.user.id,
+  }, otherToken);
+  assert.equal(clinicianCreatedPatient.status, 201,
+    'nutricionista ainda pode se designar ao criar um paciente sem consultar a equipe completa');
+  assert.equal(clinicianCreatedPatient.body.patient.workspaceId, firstWorkspaceId);
   const goal = await call('/api/goals', 'POST', {
     patientId: patient.body.patient.id,
     description: 'Meta sintética de hidratação',
@@ -344,6 +493,20 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     201,
   );
   workspaceByToken.set(assistantToken, firstWorkspaceId);
+  assert.equal((await call(memberListPath, 'GET', undefined, assistantToken)).status, 404,
+    'assistente não consulta os dados administrativos da equipe');
+  assert.equal((await call(roleListPath, 'GET', undefined, assistantToken)).status, 404,
+    'assistente não consulta a matriz administrativa de papéis');
+  assert.equal((await call('/api/clinicians', 'GET', undefined, assistantToken)).status, 404,
+    'assistente sem permissão de atribuição não consulta profissionais');
+  assert.equal((await call(`${memberListPath}/${providerMembership.id}`, 'PATCH', {
+    roles: ['assistant'],
+  }, assistantToken)).status, 404, 'assistente não pode alterar papéis');
+  assert.equal((await call(`${memberListPath}/${providerMembership.id}`, 'DELETE', undefined, assistantToken)).status, 404,
+    'assistente não pode remover membros');
+  assert.ok((await call(memberListPath, 'GET', undefined, token)).body.members
+    .some((member) => member.id === providerMembership.id),
+  'tentativas sem permissão não removem nem alteram o membership');
   const assistantProfile = await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, assistantToken);
   assert.equal(assistantProfile.status, 200);
   assert.equal(assistantProfile.body.clinicalAccess, false);
@@ -370,6 +533,18 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     token: operationsInvite.body.token,
   }, operationsToken)).status, 201);
   workspaceByToken.set(operationsToken, firstWorkspaceId);
+  const operationsMemberList = await call(memberListPath, 'GET', undefined, operationsToken);
+  assert.equal(operationsMemberList.status, 200,
+    'administradora operacional pode consultar os dados administrativos da equipe');
+  assert.equal((await call(roleListPath, 'GET', undefined, operationsToken)).status, 200,
+    'administradora operacional consulta as permissões disponíveis');
+  assert.equal((await call('/api/clinicians', 'GET', undefined, operationsToken)).status, 200,
+    'administradora operacional consulta profissionais para atribuição');
+  const operationsPatientView = await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, operationsToken);
+  assert.equal(operationsPatientView.body.clinicalAccess, false,
+    'a permissão de gestão da equipe não concede acesso clínico');
+  assert.deepEqual(operationsPatientView.body.assessments, [],
+    'a permissão de gestão da equipe não expõe avaliações clínicas');
   assert.equal((await call(`/api/workspaces/${firstWorkspaceId}/invitations`, 'POST', {
     email: 'outro-admin@example.test', role: 'operations_admin',
   }, operationsToken)).status, 403, 'administradora operacional não pode conceder privilégio equivalente');
@@ -380,6 +555,8 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.equal((await call(`/api/workspaces/${firstWorkspaceId}/invitations`, 'POST', {
     email: 'bloqueado-assistente@example.test', role: 'assistant',
   }, assistantToken)).status, 404, 'assistente sem permissão não pode criar convites');
+  assert.equal((await call(`${memberListPath}/${ownerMembership.id}`, 'DELETE', undefined, operationsToken)).status, 403,
+    'administradora operacional não pode remover a única proprietária');
   const isolatedUser = await call('/api/register', 'POST', {
     name: 'Workspace Isolado',
     email: 'isolado@example.test',
@@ -432,6 +609,150 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   );
   assert.equal(conflict.status, 409);
 
+  const secondWorkspaceInvite = await call(
+    `/api/workspaces/${isolatedWorkspace.body.workspace.id}/invitations`,
+    'POST',
+    { email: 'outro@example.test', role: 'clinician' },
+    isolatedToken,
+  );
+  assert.equal(secondWorkspaceInvite.status, 201,
+    'uma identidade pode receber membership em outro workspace independente');
+  const secondWorkspaceAcceptance = await call('/api/workspace-invitations/accept', 'POST', {
+    token: secondWorkspaceInvite.body.token,
+  }, otherToken);
+  assert.equal(secondWorkspaceAcceptance.status, 201);
+  assert.equal(secondWorkspaceAcceptance.body.workspace.id, isolatedWorkspace.body.workspace.id,
+    'o convite associa a identidade ao workspace correto');
+  const membershipsBeforeRemoval = await call('/api/workspaces', 'GET', undefined, otherToken);
+  assert.deepEqual(membershipsBeforeRemoval.body.workspaces.map((item) => item.id).sort(),
+    [firstWorkspaceId, isolatedWorkspace.body.workspace.id].sort(),
+    'a identidade mantém memberships independentes nos dois workspaces');
+
+  const portalAccessPath = `/api/patients/${secondPatient.body.patient.id}/portal-access`;
+  assert.equal((await call('/api/patient/me', 'GET', undefined, secondPatientToken, 'nt_patient_session')).status, 200,
+    'a sessão do segundo paciente está ativa antes da suspensão');
+  assert.equal((await call(portalAccessPath, 'PATCH', { status: 'suspended' }, secondPatientToken,
+    'nt_patient_session')).status, 401,
+  'o paciente não pode alterar o próprio estado de autorização');
+  workspaceByToken.set(otherToken, firstWorkspaceId);
+  assert.equal((await call(portalAccessPath, 'PATCH', { status: 'suspended' }, otherToken)).status, 404,
+    'profissional sem atribuição clínica não pode suspender o portal');
+  assert.equal((await call(portalAccessPath, 'PATCH', { status: 'suspended' }, assistantToken)).status, 404,
+    'assistente não pode suspender o portal');
+  assert.equal((await call(portalAccessPath, 'PATCH', { status: 'suspended' }, operationsToken)).status, 404,
+    'administradora sem vínculo clínico não pode suspender o portal');
+  workspaceByToken.set(otherToken, isolatedWorkspace.body.workspace.id);
+  workspaceByToken.set(isolatedToken, isolatedWorkspace.body.workspace.id);
+  assert.equal((await call(portalAccessPath, 'PATCH', { status: 'revoked' }, isolatedToken)).status, 404,
+    'administrador de outro workspace não pode revogar o acesso do paciente');
+  const cliniciansInSecondWorkspace = await call('/api/clinicians', 'GET', undefined, isolatedToken);
+  assert.equal(cliniciansInSecondWorkspace.status, 200);
+  assert.deepEqual(cliniciansInSecondWorkspace.body.clinicians.map((item) => item.id), [other.body.user.id],
+    'a lista clínica do segundo workspace contém somente profissionais daquele workspace');
+  assert.equal((await call('/api/patient/invitations/validate', 'POST', {
+    token: secondInvitation.body.token,
+  })).status, 410, 'convite consumido não pode reabrir a conta durante o ciclo de vida');
+  assert.equal((await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, otherToken)).status, 404,
+    'o contexto do segundo workspace não consulta o prontuário do primeiro');
+  assert.equal((await call(`/api/workspaces/${firstWorkspaceId}/roles`, 'GET', undefined, otherToken)).status, 404,
+    'membership no segundo workspace não autoriza consultar papéis do primeiro');
+
+  workspaceByToken.set(token, firstWorkspaceId);
+  const activePatientView = await call(`/api/patients/${secondPatient.body.patient.id}`, 'GET', undefined, token);
+  assert.equal(activePatientView.body.portal.status, 'active');
+  const pendingReset = secondPatientReset;
+  const suspendPortal = await call(portalAccessPath, 'PATCH', { status: 'suspended' }, token);
+  assert.equal(suspendPortal.status, 200);
+  assert.equal(suspendPortal.body.portal.status, 'suspended');
+  assert.equal((await call('/api/patient/me', 'GET', undefined, secondPatientToken, 'nt_patient_session')).status, 401,
+    'sessão criada antes da suspensão deixa de funcionar imediatamente');
+  assert.equal((await call('/api/patient/login', 'POST', {
+    email: 'paciente-isolado@example.test', password: 'senha-paciente-isolado-456',
+  })).status, 401, 'login é negado enquanto o portal está suspenso');
+  assert.equal((await call('/api/patient/password-resets/validate', 'POST', {
+    token: pendingReset.body.token,
+  })).status, 410, 'suspensão invalida links de redefinição pendentes');
+  assert.equal((await call(`/api/patients/${secondPatient.body.patient.id}/password-resets`, 'POST', {}, token)).status, 409,
+    'não é possível emitir redefinição enquanto o portal está suspenso');
+  assert.equal((await call(`/api/patients/${secondPatient.body.patient.id}/invitations`, 'POST', {}, token)).status, 409,
+    'suspensão não cria um novo convite para uma conta já existente');
+  assert.equal((await call('/api/patient/invitations/validate', 'POST', {
+    token: expiringPatientInvite.body.token,
+  })).status, 200, 'convite pendente de outro paciente permanece disponível');
+  const suspendedPatientView = await call(`/api/patients/${secondPatient.body.patient.id}`, 'GET', undefined, token);
+  assert.equal(suspendedPatientView.body.portal.status, 'suspended');
+  assert.equal(suspendedPatientView.body.assessments.length, 1,
+    'suspender o portal preserva os registros clínicos do paciente');
+
+  const firstPatientLoginDuringSuspension = await call('/api/patient/login', 'POST', {
+    email: 'paciente@example.test', password: 'senha-paciente-nova-456',
+  });
+  assert.equal(firstPatientLoginDuringSuspension.status, 200,
+    'suspender uma conta não afeta o portal de outro paciente');
+  const firstPatientTokenDuringSuspension = firstPatientLoginDuringSuspension.cookie.match(/nt_patient_session=([^;]+)/)[1];
+  assert.equal((await call('/api/patient/me', 'GET', undefined, firstPatientTokenDuringSuspension,
+    'nt_patient_session')).status, 200);
+
+  const reactivatePortal = await call(portalAccessPath, 'PATCH', { status: 'active' }, token);
+  assert.equal(reactivatePortal.status, 200);
+  assert.equal(reactivatePortal.body.portal.status, 'active');
+  assert.equal((await call('/api/patient/me', 'GET', undefined, secondPatientToken, 'nt_patient_session')).status, 401,
+    'reativação não restaura a sessão anterior');
+  const reactivatedPatientLogin = await call('/api/patient/login', 'POST', {
+    email: 'paciente-isolado@example.test', password: 'senha-paciente-isolado-456',
+  });
+  assert.equal(reactivatedPatientLogin.status, 200,
+    'a conta suspensa pode ser reativada pelo profissional vinculado');
+  const reactivatedPatientToken = reactivatedPatientLogin.cookie.match(/nt_patient_session=([^;]+)/)[1];
+
+  const revokePortal = await call(portalAccessPath, 'PATCH', { status: 'revoked' }, token);
+  assert.equal(revokePortal.status, 200);
+  assert.equal(revokePortal.body.portal.status, 'revoked');
+  assert.equal((await call('/api/patient/me', 'GET', undefined, reactivatedPatientToken, 'nt_patient_session')).status, 401,
+    'revogação encerra também sessões criadas após a reativação');
+  assert.equal((await call('/api/patient/login', 'POST', {
+    email: 'paciente-isolado@example.test', password: 'senha-paciente-isolado-456',
+  })).status, 401, 'login é negado após revogação');
+  assert.equal((await call(portalAccessPath, 'PATCH', { status: 'active' }, token)).status, 409,
+    'estado revogado é terminal');
+  const revokedPatientView = await call(`/api/patients/${secondPatient.body.patient.id}`, 'GET', undefined, token);
+  assert.equal(revokedPatientView.body.portal.status, 'revoked');
+  assert.equal(revokedPatientView.body.assessments.length, 1,
+    'revogar o portal preserva os registros clínicos');
+  assert.equal((await call('/api/patient/me', 'GET', undefined, firstPatientTokenDuringSuspension,
+    'nt_patient_session')).status, 200,
+  'revogar uma conta não afeta a sessão de outro paciente');
+
+  workspaceByToken.set(otherToken, firstWorkspaceId);
+  assert.equal((await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, otherToken)).status, 200,
+    'a sessão existente continua acessando o workspace A antes da remoção');
+  assert.equal((await call(`${memberListPath}/${providerMembership.id}`, 'DELETE', undefined, isolatedToken)).status, 404,
+    'administradora de outro workspace não pode remover membership do workspace A');
+  assert.equal((await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, otherToken)).status, 200,
+    'tentativa de remoção cross-workspace não alterou o acesso legítimo');
+
+  const removal = await call(`${memberListPath}/${providerMembership.id}`, 'DELETE', undefined, token);
+  assert.equal(removal.status, 200, 'proprietária remove o membership do workspace A');
+  assert.equal((await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, otherToken)).status, 403,
+    'a mesma sessão perde acesso ao workspace A na requisição seguinte');
+  const membershipsAfterRemoval = await call('/api/workspaces', 'GET', undefined, otherToken);
+  assert.deepEqual(membershipsAfterRemoval.body.workspaces.map((item) => item.id),
+    [isolatedWorkspace.body.workspace.id],
+    'a remoção do membership A preserva o membership B da identidade');
+  const ownerPatientAfterRemoval = await call(`/api/patients/${patient.body.patient.id}`, 'GET', undefined, token);
+  assert.ok(ownerPatientAfterRemoval.body.assignments.every((assignment) =>
+    assignment.professionalId !== other.body.user.id),
+  'revogar membership encerra as atribuições desse profissional sem transferir o prontuário');
+  workspaceByToken.set(otherToken, isolatedWorkspace.body.workspace.id);
+  assert.equal((await call('/api/dashboard', 'GET', undefined, otherToken)).status, 200,
+    'a mesma sessão continua acessando o workspace B após a remoção em A');
+  assert.deepEqual((await call('/api/patients', 'GET', undefined, otherToken)).body.patients, [],
+    'a identidade mantém acesso de leitura administrativa restrita ao workspace B');
+  const cliniciansAfterRemoval = await call('/api/clinicians', 'GET', undefined, isolatedToken);
+  assert.equal(cliniciansAfterRemoval.status, 200);
+  assert.deepEqual(cliniciansAfterRemoval.body.clinicians.map((item) => item.id), [other.body.user.id],
+    'a identidade removida de A continua nutricionista ativa em B');
+
   const logout = await call('/api/logout', 'POST', {}, token);
   assert.equal(logout.status, 200);
   assert.equal((await call('/api/dashboard', 'GET', undefined, token)).status, 401);
@@ -445,6 +766,11 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   );
   assert.ok(expiringInvitation, 'convite sintético pendente deve existir para o cenário de expiração');
   expiringInvitation.expiresAt = new Date(Date.now() - 1000).toISOString();
+  const expiredPatientInvitation = syntheticStore.patientInvitations.find(
+    (entry) => entry.patientId === expiringPatient.body.patient.id && !entry.usedAt,
+  );
+  assert.ok(expiredPatientInvitation, 'convite de portal sintético deve existir para o cenário de expiração');
+  expiredPatientInvitation.expiresAt = new Date(Date.now() - 1000).toISOString();
   for (const membership of syntheticStore.memberships)
     if (membership.userId === register.body.user.id) membership.status = 'revoked';
   for (const collection of ['patients', 'assessments', 'appointments', 'goals', 'mealPlans'])
@@ -460,14 +786,13 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     if (event.userId === register.body.user.id) delete event.workspaceId;
   await fs.writeFile(syntheticStorePath, JSON.stringify(syntheticStore));
 
-  child.kill();
-  await new Promise((resolve) => child.once('exit', resolve));
+  await stopServer(child);
   const restartedPort = await freePort();
   child = spawn(process.execPath, [path.join(__dirname, '..', 'src', 'server.js')], {
     env: { ...process.env, PORT: String(restartedPort), DATA_DIR: dir, NODE_ENV: 'test' },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
-  base = `http://localhost:${restartedPort}`;
+  base = `http://127.0.0.1:${restartedPort}`;
   ready = false;
   for (let i = 0; i < 60; i++) {
     try {
@@ -494,10 +819,18 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.equal((await call('/api/workspace-invitations/accept', 'POST', {
     token: expiringInvite.body.token,
   }, isolatedRestartedToken)).status, 404, 'convite expirado não pode ser aceito');
+  assert.equal((await call('/api/patient/invitations/validate', 'POST', {
+    token: expiringPatientInvite.body.token,
+  })).status, 410, 'convite expirado do portal não pode ser validado');
+  assert.equal((await call('/api/patient/activate', 'POST', {
+    token: expiringPatientInvite.body.token,
+    email: 'paciente-expirado@example.test',
+    password: 'senha-paciente-expirado-123',
+  })).status, 410, 'convite expirado do portal não pode ativar uma conta');
   const legacyPreview = await call('/api/workspaces/legacy-preview', 'GET', undefined, restartedToken);
   assert.equal(legacyPreview.status, 200);
   assert.equal(legacyPreview.body.hasLegacyRecords, true);
-  assert.equal(legacyPreview.body.patients.length, 1);
+  assert.equal(legacyPreview.body.patients.length, 3);
   const migration = await call('/api/workspaces/migrate-personal', 'POST', {
     name: 'Consultório Migrado',
     clinician: true,
@@ -507,7 +840,7 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   assert.ok(migration.body.backup);
   await fs.access(path.join(dir, 'backups', migration.body.backup));
   workspaceByToken.set(restartedToken, migration.body.workspace.id);
-  assert.equal((await call('/api/patients', 'GET', undefined, restartedToken)).body.patients.length, 1);
+  assert.equal((await call('/api/patients', 'GET', undefined, restartedToken)).body.patients.length, 3);
   assert.equal(
     (await call('/api/assessments', 'GET', undefined, restartedToken)).body.assessments.length,
     1,
@@ -526,7 +859,7 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     },
     stdio: ['ignore', 'ignore', 'pipe'],
   });
-  base = `http://localhost:${expiryPort}`;
+  base = `http://127.0.0.1:${expiryPort}`;
   ready = false;
   for (let i = 0; i < 60; i++) {
     try {

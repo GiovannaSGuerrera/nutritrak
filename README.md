@@ -1,5 +1,48 @@
 # NutriTrack
 
+## API Python (migração em andamento)
+
+Há uma implementação FastAPI/SQLAlchemy/PostgreSQL inicial em `apps/api-python`. Ela inclui cadastro/login profissional, cookies de sessão persistidos, pacientes e atribuições, avaliações, agenda, metas, planos alimentares com publicação, convites e autenticação básica do portal. A interface continua HTML/CSS/JavaScript e aceita a configuração da URL da API em `apps/web/public/config.js`.
+
+O backend Node existente continua preservado e é o único backend que reproduz integralmente os fluxos atuais de equipe/workspaces e compatibilidade visual. A API Python ainda não é substituta completa nem está pronta para dados de produção. Consulte [docs/PYTHON_MIGRATION_STATUS.md](docs/PYTHON_MIGRATION_STATUS.md) antes de usar.
+
+### Desenvolvimento com Docker
+
+Requer Docker Compose. Copie `.env.example` para `.env`, defina uma senha local longa e URL-safe em `POSTGRES_PASSWORD`, e então:
+
+```sh
+docker compose up -d db
+pnpm db:migrate
+pnpm dev:python
+```
+
+Em outro terminal, inicie a interface em `http://localhost:8080`, apontando para a API Python:
+
+```sh
+export API_BASE_URL=http://localhost:8000
+pnpm dev:web
+```
+
+No PowerShell: `$env:API_BASE_URL='http://localhost:8000'; pnpm dev:web`. Sem essa variável, o servidor web usa a mesma origem, o que mantém compatibilidade com o servidor Node legado.
+
+`pnpm test:python` executa os testes contra o PostgreSQL do Compose. Use somente um banco descartável de teste; a suíte não deve apontar para produção. A API não aplica migrações automaticamente ao iniciar. Para verificação de prontidão: `GET http://localhost:8000/health`.
+
+Para hospedagem, aplique migrations como etapa explícita (`alembic upgrade head`) e use PostgreSQL, origens CORS, HTTPS e `SESSION_COOKIE_SECURE=true` exclusivos daquele ambiente. O frontend deve usar proxy same-site para a API ou configurar `NUTRITRACK_API_BASE` em `apps/web/public/config.js` e revisar cookies/CORS do domínio final.
+
+### Backup local PostgreSQL
+
+```sh
+docker compose exec -T db pg_dump -U nutritrack -Fc nutritrack > nutritrack.dump
+```
+
+Restaure em um banco novo e vazio, após verificar o arquivo e a versão do schema:
+
+```sh
+docker compose exec -T db pg_restore -U nutritrack -d nutritrack --clean --if-exists < nutritrack.dump
+```
+
+Não use `--clean` contra a base ativa. Em hospedagem, use o mecanismo de backup do provedor, teste restauração em uma base isolada e documente RPO/RTO antes do corte.
+
 NutriTrack é uma plataforma em desenvolvimento para apoiar nutricionistas no acompanhamento de pacientes. O objetivo é evoluir, em etapas compreensíveis e testáveis, de uma base funcional para um produto com aplicações web e móveis e uma API central.
 
 ## Estado atual

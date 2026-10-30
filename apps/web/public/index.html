@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#f8f5e9" />
     <title>NutriTrack — acompanhamento nutricional</title>
-    <link rel="stylesheet" href="/styles.css?v=20261029-2" />
-    <script src="/app.js?v=20261029-2" defer></script>
-    <script src="/portal.js?v=20261028-3" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=20261029-3" />
+    <script src="/config.js" defer></script>
+    <script src="/app.js?v=20261029-3" defer></script>
+    <script src="/portal.js?v=20261030-1" defer></script>
   </head>
   <body>
     <div id="auth" class="auth-shell">
@@ -15,9 +16,9 @@
         <span class="brand-mark" aria-hidden="true">♧</span><span>NutriTrack</span>
       </div>
       <section class="auth-card">
-        <p class="eyebrow">SEU ESPAÇO PROFISSIONAL</p>
-        <h1 id="auth-title">Bem-vinda ao NutriTrack</h1>
-        <p class="muted" id="auth-subtitle">Entre para organizar seus acompanhamentos.</p>
+        <p class="eyebrow">NUTRITRACK</p>
+        <h1 id="auth-title">Entre na sua conta</h1>
+        <p class="muted" id="auth-subtitle">Acesse seus pacientes e atendimentos.</p>
         <p class="runtime-notice" id="runtime-notice" hidden>
           Para usar o NutriTrack, inicie o servidor na pasta do projeto com <code>pnpm dev</code> e
           abra <code>http://localhost:3000</code>.
@@ -63,7 +64,7 @@
             </label>
           </div>
           <p class="invite-registration-note" id="auth-invite-notice" hidden>
-            Você está entrando por um convite. Seu acesso será definido pelos papéis concedidos pela gerente.
+            Você recebeu um convite. Depois de entrar, terá os acessos definidos pela responsável pelo consultório.
           </p>
           <button class="button primary full" id="auth-submit">Entrar</button>
         </form>
