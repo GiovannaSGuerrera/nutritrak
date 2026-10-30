@@ -19,7 +19,7 @@ pnpm install
 pnpm dev
 ```
 
-Abra http://localhost:3000. Crie uma conta profissional de desenvolvimento com senha de pelo menos 12 caracteres. `pnpm start` inicia o servidor; `pnpm test` executa os testes da API; `pnpm format` formata o código com Prettier. Os dados ficam em `data/store.json`, ignorado pelo Git. Sessões são mantidas em memória e terminam ao reiniciar. `.env.example` registra as variáveis lidas pelo servidor; Node.js nativo não carrega esse arquivo automaticamente.
+Abra http://localhost:3000. Crie uma conta profissional de desenvolvimento com senha de pelo menos 12 caracteres. `pnpm start` inicia o servidor; `pnpm test` executa os testes da API; `pnpm format` formata o código com Prettier. Os dados ficam em `data/store.json`, ignorado pelo Git. Sessões separadas de profissionais e pacientes são mantidas em memória, expiram após oito horas e terminam ao reiniciar; o servidor também valida esse prazo. `.env.example` registra as variáveis lidas pelo servidor; Node.js nativo não carrega esse arquivo automaticamente.
 
 ## Estrutura atual
 
@@ -40,6 +40,7 @@ A API ainda serve os arquivos estáticos da web. A separação em pastas é um l
 
 ## Documentação
 
+- [Estado da implementação do MVP e decisões bloqueadoras](docs/MVP_IMPLEMENTATION_STATUS.md)
 - [Diagnóstico do estado atual](docs/architecture/current-state.md)
 - [Arquitetura alvo](docs/architecture/target.md)
 - [Plano incremental de migração](docs/development/migration-plan.md)
@@ -49,10 +50,10 @@ A API ainda serve os arquivos estáticos da web. A separação em pastas é um l
 
 ## Segurança e limitações
 
-A API verifica a identidade e associa os registros ao profissional autenticado. Senhas são derivadas por scrypt; o cookie de sessão é HttpOnly e SameSite=Strict. A redefinição de senha do portal é iniciada pelo profissional e compartilhada manualmente; não há envio automático por e-mail. Faltam controles necessários à produção: rate limiting, recuperação automática por e-mail, sessões persistentes/revogáveis, banco relacional, gestão de segredos, backups, retenção e revisão profissional de segurança e privacidade. O projeto não declara conformidade automática com a LGPD.
+A API exige membership ativo no workspace selecionado e aplica papéis e atribuições clínicas por paciente. Após cadastro, uma etapa anterior ao painel pergunta se a pessoa criará consultório próprio (com nome e escolha de papel clínico) ou entrará por convite; só a proprietária recebe gestão do workspace. Contas antigas precisam confirmar uma migração explícita com backup local. Convites de equipe e do portal são links de uso único compartilhados manualmente; não há envio automático por e-mail. Senhas são derivadas por scrypt; cookies são HttpOnly/SameSite e as sessões expiram no servidor após oito horas.
 
-Store JSON e sessões em memória são somente para desenvolvimento de uma instância; não há garantias de concorrência, disponibilidade ou retenção apropriada. Consulte a arquitetura antes de ampliar o uso.
+Store JSON e sessões em memória são somente para desenvolvimento de uma instância; não há garantias de concorrência, disponibilidade, recuperação ou retenção apropriada. Também faltam rate limiting, MFA, armazenamento compartilhado de sessão, banco relacional e revisão profissional de segurança/privacidade. O projeto não declara conformidade automática com a LGPD nem prontidão para dados clínicos reais. Consulte [o estado da implementação multi-tenant](docs/MVP_IMPLEMENTATION_STATUS.md) e a arquitetura antes de ampliar o uso.
 
 ## Aprendizado
 
-Fluxo atual: navegador chama endpoints HTTP no mesmo servidor; o servidor valida a entrada, identifica o profissional pelo cookie, filtra registros pelo identificador autenticado, atualiza o arquivo JSON e devolve JSON. O teste de integração valida cadastro, cálculo, isolamento entre profissionais e conflito na agenda. A documentação de diagnóstico e o ADR explicam a primeira transição e suas consequências.
+Fluxo atual: navegador chama endpoints HTTP no mesmo servidor; o servidor identifica a conta pelo cookie, valida o membership e o workspace ativo, checa papel/atribuição quando a operação é clínica, atualiza o arquivo JSON e devolve uma projeção compatível com o papel. A suíte de integração cobre cadastro e fluxos anteriores, convite/aceite de equipe, atribuição, assistente sem prontuário, isolamento entre workspaces e conflito de agenda. A documentação de diagnóstico e o ADR explicam a evolução incremental e suas consequências.

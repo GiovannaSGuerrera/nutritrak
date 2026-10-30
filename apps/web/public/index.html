@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <meta name="theme-color" content="#f8f5e9" />
     <title>NutriTrack — acompanhamento nutricional</title>
-    <link rel="stylesheet" href="/styles.css?v=20261028-7" />
-    <script src="/app.js?v=20261028-7" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=20261029-2" />
+    <script src="/app.js?v=20261029-2" defer></script>
     <script src="/portal.js?v=20261028-3" defer></script>
   </head>
   <body>
@@ -47,6 +47,24 @@
               autocomplete="current-password"
               placeholder="Pelo menos 12 caracteres"
           /></label>
+          <div id="auth-profile-fields" hidden>
+            <label for="auth-profile-type">Tipo de perfil
+              <select id="auth-profile-type" name="profileType">
+                <option value="nutritionist">Nutricionista</option>
+                <option value="clinic">Clínica ou consultório</option>
+              </select>
+            </label>
+            <label id="auth-workspace-name-field" hidden>Nome da clínica ou consultório
+              <input id="auth-workspace-name" autocomplete="organization" maxlength="120" placeholder="Ex.: Clínica Centro">
+            </label>
+            <label class="auth-clinician-option" id="auth-clinician-option" hidden>
+              <input id="auth-clinician" type="checkbox" />
+              Também vou atender pacientes nesta clínica
+            </label>
+          </div>
+          <p class="invite-registration-note" id="auth-invite-notice" hidden>
+            Você está entrando por um convite. Seu acesso será definido pelos papéis concedidos pela gerente.
+          </p>
           <button class="button primary full" id="auth-submit">Entrar</button>
         </form>
         <p class="auth-toggle">
@@ -69,25 +87,15 @@
           ><span class="brand-mark" aria-hidden="true">♧</span
           ><span><strong>NutriTrack</strong><small>ESPAÇO PROFISSIONAL</small></span></a
         >
-        <p class="nav-caption">CONSULTÓRIO</p>
-        <nav aria-label="Navegação principal">
-          <button class="nav-item active" data-page="dashboard">
-            <span class="nav-icon">⌁</span> Visão geral
-          </button>
-          <button class="nav-item" data-page="patients">
-            <span class="nav-icon">♧</span> Pacientes <b id="patient-badge">0</b>
-          </button>
-          <button class="nav-item" data-page="assessments">
-            <span class="nav-icon">♡</span> Avaliações
-          </button>
-          <button class="nav-item" data-page="meal-plans">
-            <span class="nav-icon">▤</span> Planos alimentares
-          </button>
-          <button class="nav-item" data-page="agenda">
-            <span class="nav-icon">▦</span> Agenda
-          </button>
-          <button class="nav-item" data-page="goals"><span class="nav-icon">◎</span> Metas</button>
-        </nav>
+        <div class="workspace-switcher">
+          <label>Perfil ou contexto atual</label>
+          <strong id="workspace-current">—</strong>
+          <button class="button subtle" id="switch-context">Trocar perfil</button>
+          <button class="button subtle" id="new-workspace">＋ Criar clínica</button>
+          <button class="button subtle" id="migrate-legacy" hidden>Organizar dados antigos</button>
+        </div>
+        <p class="nav-caption" id="nav-caption">ATENDIMENTO CLÍNICO</p>
+        <nav aria-label="Navegação principal" id="main-nav"></nav>
         <div class="privacy-card">
           <strong><i></i> Dados privados</strong
           ><span>Seus pacientes ficam isolados da conta de outros profissionais.</span>
