@@ -33,7 +33,7 @@ http.createServer(async (req, res) => {
   if (!file.startsWith(root + path.sep)) { res.writeHead(403); return res.end(); }
   try {
     const content = relative === 'config.js'
-      ? Buffer.from('window.NUTRITRACK_API_BASE = "";\n')
+      ? Buffer.from(`window.NUTRITRACK_API_BASE = "";\nwindow.NUTRITRACK_CLINIC_ADMIN_ENABLED = ${process.env.NUTRITRACK_CLINIC_ADMIN_ENABLED === 'true' || (process.env.NODE_ENV !== 'production' && process.env.NUTRITRACK_CLINIC_ADMIN_ENABLED !== 'false')};\n`)
       : await fs.readFile(file);
     res.writeHead(200, {
       'content-type': mime[path.extname(file)] || 'application/octet-stream',

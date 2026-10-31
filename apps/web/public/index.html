@@ -7,7 +7,7 @@
     <title>NutriTrack — acompanhamento nutricional</title>
     <link rel="stylesheet" href="/styles.css?v=20261029-3" />
     <script src="/config.js" defer></script>
-    <script src="/app.js?v=20261029-3" defer></script>
+    <script src="/app.js?v=20261031-1" defer></script>
     <script src="/portal.js?v=20261030-1" defer></script>
   </head>
   <body>
@@ -48,23 +48,10 @@
               autocomplete="current-password"
               placeholder="Pelo menos 12 caracteres"
           /></label>
-          <div id="auth-profile-fields" hidden>
-            <label for="auth-profile-type">Tipo de perfil
-              <select id="auth-profile-type" name="profileType">
-                <option value="nutritionist">Nutricionista</option>
-                <option value="clinic">Clínica ou consultório</option>
-              </select>
-            </label>
-            <label id="auth-workspace-name-field" hidden>Nome da clínica ou consultório
-              <input id="auth-workspace-name" autocomplete="organization" maxlength="120" placeholder="Ex.: Clínica Centro">
-            </label>
-            <label class="auth-clinician-option" id="auth-clinician-option" hidden>
-              <input id="auth-clinician" type="checkbox" />
-              Também vou atender pacientes nesta clínica
-            </label>
-          </div>
+          <input id="auth-profile-type" type="hidden" value="nutritionist" />
           <p class="invite-registration-note" id="auth-invite-notice" hidden>
-            Você recebeu um convite. Depois de entrar, terá os acessos definidos pela responsável pelo consultório.
+            Você recebeu um convite. Depois de entrar, terá os acessos definidos pela responsável
+            pelo consultório.
           </p>
           <button class="button primary full" id="auth-submit">Entrar</button>
         </form>
@@ -91,8 +78,8 @@
         <div class="workspace-switcher">
           <label>Perfil ou contexto atual</label>
           <strong id="workspace-current">—</strong>
-          <button class="button subtle" id="switch-context">Trocar perfil</button>
-          <button class="button subtle" id="new-workspace">＋ Criar clínica</button>
+          <button class="button subtle" id="switch-context" hidden>Trocar perfil</button>
+          <button class="button subtle" id="new-workspace" hidden>＋ Criar clínica</button>
           <button class="button subtle" id="migrate-legacy" hidden>Organizar dados antigos</button>
         </div>
         <p class="nav-caption" id="nav-caption">ATENDIMENTO CLÍNICO</p>

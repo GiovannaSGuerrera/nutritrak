@@ -18,6 +18,10 @@ const PUBLIC_DIR = path.resolve(__dirname, '../../web/public');
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
 const STORE = path.join(DATA_DIR, 'store.json');
 const PORT = Number(process.env.PORT || 3000);
+// Clinic administration remains implemented but is disabled in the published individual experience.
+const CLINIC_ADMIN_ENABLED =
+  process.env.NUTRITRACK_CLINIC_ADMIN_ENABLED === 'true' ||
+  (process.env.NODE_ENV !== 'production' && process.env.NUTRITRACK_CLINIC_ADMIN_ENABLED !== 'false');
 // Keep server validation aligned with the existing cookie lifetime. The
 // override is useful for deterministic local tests; production defaults to 8h.
 const SESSION_MAX_AGE_SECONDS = Math.max(
@@ -393,7 +397,14 @@ async function handle(req, res) {
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const u = userFor(req);
     return u
-      ? json(res, 200, { user: safeUser(u), workspaces: workspaceMemberships(store, u.id) })
+      ? json(res, 200, {
+          user: safeUser(u),
+          workspaces: workspaceMemberships(store, u.id).filter(
+            (workspace) =>
+              CLINIC_ADMIN_ENABLED ||
+              (workspace.type !== 'clinic' && workspace.roles.includes('clinician')),
+          ),
+        })
       : json(res, 401, { error: 'Autenticação necessária' });
   }
   if (req.method === 'POST' && url.pathname === '/api/patient/invitations/validate') {
@@ -613,6 +624,8 @@ async function handle(req, res) {
       .trim()
       .toLowerCase();
     const profileType = b.profileType == null ? null : String(b.profileType);
+    if (!CLINIC_ADMIN_ENABLED && profileType === 'clinic')
+      return json(res, 404, { error: 'Este tipo de perfil não está disponível nesta versão.' });
     if (
       !validText(b.name, 120) ||
       !/^\S+@\S+\.\S+$/.test(email) ||
@@ -698,6 +711,13 @@ async function handle(req, res) {
   const u = userFor(req);
   if (!u) return json(res, 401, { error: 'Autenticação necessária' });
   const uid = u.id;
+  const clinicAdminEndpoint =
+    url.pathname === '/api/clinicians' ||
+    url.pathname.startsWith('/api/workspace-invitations') ||
+    (/^\/api\/workspaces\/[^/]+\/(members|invitations|roles)(\/|$)/.test(url.pathname)) ||
+    (req.method === 'PATCH' && /^\/api\/workspaces\/[^/]+$/.test(url.pathname));
+  if (!CLINIC_ADMIN_ENABLED && clinicAdminEndpoint)
+    return json(res, 404, { error: 'Esta funcionalidade não está disponível nesta versão.' });
   if (req.method === 'GET' && url.pathname === '/api/workspaces/legacy-preview') {
     const patients = store.patients
       .filter((patient) => patient.userId === uid && !patient.workspaceId)
@@ -790,10 +810,18 @@ async function handle(req, res) {
     return json(res, 201, { workspace, backup: backupName });
   }
   if (req.method === 'GET' && url.pathname === '/api/workspaces')
-    return json(res, 200, { workspaces: workspaceMemberships(store, uid) });
+    return json(res, 200, {
+      workspaces: workspaceMemberships(store, uid).filter(
+        (workspace) => CLINIC_ADMIN_ENABLED || (workspace.type !== 'clinic' && workspace.roles.includes('clinician')),
+      ),
+    });
   if (req.method === 'POST' && url.pathname === '/api/workspaces/select') {
     const b = await body(req);
+    if (!CLINIC_ADMIN_ENABLED && b.experience !== 'clinical')
+      return json(res, 404, { error: 'Este tipo de perfil não está disponível nesta versão.' });
     const workspace = store.workspaces.find((item) => item.id === String(b.workspaceId || ''));
+    if (!CLINIC_ADMIN_ENABLED && workspace?.type === 'clinic')
+      return json(res, 404, { error: 'Este tipo de perfil não está disponível nesta versão.' });
     const membership = workspace && activeMembership(store, uid, workspace.id);
     if (!workspace || !membership) return json(res, 404, { error: 'Contexto indisponível para esta conta.' });
     const experience = String(b.experience || '');
@@ -813,13 +841,19 @@ async function handle(req, res) {
   }
   if (req.method === 'POST' && url.pathname === '/api/workspaces') {
     const activeWorkspaces = workspaceMemberships(store, uid);
-    if (activeWorkspaces.length) {
+    if (
+      activeWorkspaces.length &&
+      (CLINIC_ADMIN_ENABLED ||
+        activeWorkspaces.some((workspace) => workspace.type === 'individual' && workspace.roles.includes('clinician')))
+    ) {
       const currentContext = workspaceContext(req, u);
       if (!currentContext || !currentContext.membership.roles.includes('owner_admin'))
         return json(res, 403, { error: 'Somente a proprietária do consultório pode criar outro workspace.' });
     }
     const b = await body(req);
     const name = String(b.name || '').trim();
+    if (!CLINIC_ADMIN_ENABLED && (b.type !== 'individual' || b.clinician !== true))
+      return json(res, 404, { error: 'Somente espaços profissionais individuais estão disponíveis nesta versão.' });
     if (!validText(name, 120) || !['individual', 'clinic'].includes(b.type))
       return json(res, 400, { error: 'Informe nome e tipo de workspace válidos.' });
     const roles = b.clinician === true ? ['owner_admin', 'clinician'] : ['owner_admin'];
@@ -1078,6 +1112,8 @@ async function handle(req, res) {
       error: 'Selecione um workspace ao qual sua conta tenha membership ativo.',
     });
   const { workspace, membership } = context;
+  if (!CLINIC_ADMIN_ENABLED && workspace.type === 'clinic')
+    return json(res, 404, { error: 'Este tipo de espaço não está disponível nesta versão.' });
   if (req.method === 'GET' && url.pathname === '/api/clinicians') {
     if (!hasPermission(store, membership, 'patients.assign'))
       return json(res, 404, { error: 'Workspace não encontrado.' });
@@ -1764,7 +1800,9 @@ async function serveStatic(pathname, res) {
   let full = path.resolve(PUBLIC_DIR, file);
   if (!full.startsWith(PUBLIC_DIR + path.sep)) return json(res, 403, { error: 'Acesso negado' });
   try {
-    const data = await fs.readFile(full);
+    const data = path.basename(full) === 'config.js'
+      ? Buffer.from(`window.NUTRITRACK_API_BASE = '';\nwindow.NUTRITRACK_CLINIC_ADMIN_ENABLED = ${CLINIC_ADMIN_ENABLED};\n`)
+      : await fs.readFile(full);
     res.writeHead(200, {
       'content-type': MIME[path.extname(full)] || 'application/octet-stream',
       'cache-control': 'no-cache',

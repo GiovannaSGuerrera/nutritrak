@@ -1,6 +1,8 @@
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
 const API_BASE = (window.NUTRITRACK_API_BASE || '').replace(/\/$/, '');
+// Temporarily keep clinic administration out of the published individual nutritionist experience.
+const CLINIC_ADMIN_EXPERIENCE_ENABLED = window.NUTRITRACK_CLINIC_ADMIN_ENABLED === true;
 const state = {
   user: null,
   page: 'dashboard',
@@ -92,6 +94,11 @@ async function loadPatients() {
   $('#patient-badge').textContent = state.patients.length;
 }
 async function navigate(page) {
+  if (
+    !CLINIC_ADMIN_EXPERIENCE_ENABLED &&
+    ['team', 'professionals', 'invitations', 'clinic', 'permissions'].includes(page)
+  )
+    return;
   state.page = page;
   state.patient = null;
   $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.page === page));
@@ -162,11 +169,19 @@ async function dashboard() {
 }
 async function clinicDashboard() {
   const d = await api('/api/dashboard');
-  const canManageMembers = state.activeRoles.some((role) => ['owner_admin', 'operations_admin'].includes(role));
-  const canAssign = state.activeRoles.some((role) => ['owner_admin', 'operations_admin'].includes(role));
+  const canManageMembers = state.activeRoles.some((role) =>
+    ['owner_admin', 'operations_admin'].includes(role),
+  );
+  const canAssign = state.activeRoles.some((role) =>
+    ['owner_admin', 'operations_admin'].includes(role),
+  );
   const [membersResult, invitationsResult, cliniciansResult] = await Promise.all([
-    canManageMembers ? api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members`) : Promise.resolve({ members: [] }),
-    canManageMembers ? api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/invitations`) : Promise.resolve({ invitations: [] }),
+    canManageMembers
+      ? api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members`)
+      : Promise.resolve({ members: [] }),
+    canManageMembers
+      ? api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/invitations`)
+      : Promise.resolve({ invitations: [] }),
     canAssign ? api('/api/clinicians') : Promise.resolve({ clinicians: [] }),
   ]);
   const cards = [
@@ -174,11 +189,31 @@ async function clinicDashboard() {
     ['Pacientes ativos', d.activePatients, 'Pacientes com cadastro ativo', '♡', 'honey'],
   ];
   if (canManageMembers) {
-    cards.push(['Membros da equipe', membersResult.members.length, 'Pessoas com acesso ativo', '♙', 'peach']);
-    cards.push(['Convites pendentes', invitationsResult.invitations.filter((item) => item.status === 'pending').length, 'Aguardando aceite', '✉', 'mint']);
+    cards.push([
+      'Membros da equipe',
+      membersResult.members.length,
+      'Pessoas com acesso ativo',
+      '♙',
+      'peach',
+    ]);
+    cards.push([
+      'Convites pendentes',
+      invitationsResult.invitations.filter((item) => item.status === 'pending').length,
+      'Aguardando aceite',
+      '✉',
+      'mint',
+    ]);
   }
-  if (canAssign) cards.push(['Nutricionistas', cliniciansResult.clinicians.length, 'Nutricionistas ativos', '◎', 'honey']);
-  $('#content').innerHTML = `${heading('Visão geral', 'Acompanhe pacientes, profissionais e convites do consultório.')}
+  if (canAssign)
+    cards.push([
+      'Nutricionistas',
+      cliniciansResult.clinicians.length,
+      'Nutricionistas ativos',
+      '◎',
+      'honey',
+    ]);
+  $('#content').innerHTML =
+    `${heading('Visão geral', 'Acompanhe pacientes, profissionais e convites do consultório.')}
     <section class="stats">${cards.map((card) => `<article class="stat-card"><div class="stat-top">${card[0]}<span class="stat-icon ${card[4]}">${card[3]}</span></div><div class="stat-value">${card[1]}</div><div class="stat-hint">${esc(card[2])}</div></article>`).join('')}</section>
     <div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Agenda do consultório</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((item) => `<div class="appointment-row"><div class="time-block">${timeFmt(item.start)}</div><div><div class="row-primary">${esc(item.patientName)}</div><div class="row-secondary">${dateFmt(item.start)} · ${esc(item.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : '<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Atividade do consultório</p></div></div>${d.recent.length ? d.recent.map((item) => `<div class="activity-row"><div class="avatar">•</div><div><div class="row-primary">${esc(item.action.replaceAll('_', ' '))}</div><div class="row-secondary">${dateFmt(item.at)}</div></div></div>`).join('') : '<div class="empty-inline">Nenhuma atividade administrativa ainda.</div>'}</section></div>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
@@ -288,7 +323,7 @@ async function mealPlansPage() {
       }),
   );
 }
-function mealPlanEditor(plan = null) {
+function mealPlanEditor(plan = null, patientId = state.patient?.id || null) {
   if (!state.patients.length) {
     toast('Cadastre um paciente antes de criar um plano.', true);
     return;
@@ -297,13 +332,15 @@ function mealPlanEditor(plan = null) {
   const selected = latest || null;
   const patientSelect = plan
     ? ''
-    : field('patientId', 'Paciente', 'select', {
-        required: true,
-        wide: true,
-        options: state.patients
-          .filter((p) => p.status !== 'Arquivado')
-          .map((p) => ({ value: p.id, label: p.name })),
-      });
+    : patientId
+      ? `<input type="hidden" name="patientId" value="${esc(patientId)}">`
+      : field('patientId', 'Paciente', 'select', {
+          required: true,
+          wide: true,
+          options: state.patients
+            .filter((p) => p.status !== 'Arquivado')
+            .map((p) => ({ value: p.id, label: p.name })),
+        });
   const d = $('#modal'),
     root = $('#modal-content');
   root.innerHTML = `<h2>${plan ? (latest?.status === 'published' ? 'Criar nova versão' : 'Editar rascunho') : 'Criar plano alimentar'}</h2><p class="modal-intro">${plan ? 'A versão já publicada será preservada; as alterações ficam em um rascunho novo.' : 'O plano começa como rascunho e pode ser publicado após revisar os itens.'}</p><form id="plan-form"><div class="form-grid">${patientSelect}${field('name', 'Nome do plano', 'text', { required: true, wide: true, placeholder: 'Ex.: Plano de acompanhamento' })}${field('objective', 'Objetivo do plano', 'textarea', { wide: true, placeholder: 'Contexto e objetivo definidos pelo profissional' })}${field('startDate', 'Início da vigência', 'date')}${field('reviewDate', 'Data de revisão', 'date')}${field('generalInstructions', 'Orientações gerais', 'textarea', { wide: true, placeholder: 'Orientações fornecidas pelo profissional' })}</div><div class="meal-section-head"><div><h3>Refeições</h3><p>Valores nutricionais não são calculados automaticamente.</p></div><button type="button" class="button subtle add-plan-meal">＋ Adicionar refeição</button></div><div id="plan-meals">${(selected?.meals?.length ? selected.meals : [{}]).map(mealEditorMarkup).join('')}</div><div class="modal-actions"><button type="button" class="button" id="cancel-plan">Cancelar</button><button class="button primary">Salvar rascunho</button></div></form>`;
@@ -330,7 +367,8 @@ function mealPlanEditor(plan = null) {
           ? 'Nova versão salva como rascunho'
           : 'Rascunho salvo',
       );
-      await mealPlansPage();
+      if (state.patient) await patientProfile(state.patient.id, 'meal-plans');
+      else await mealPlansPage();
     } catch (err) {
       toast(err.message, true);
     }
@@ -340,8 +378,11 @@ function mealPlanEditor(plan = null) {
 async function patientModal(p = null) {
   const currentWorkspace = state.workspaces.find((item) => item.id === state.workspaceId);
   const roles = currentWorkspace?.roles || [];
-  const canAssign = roles.some((role) => ['owner_admin', 'operations_admin'].includes(role));
   const isClinician = roles.includes('clinician');
+  const canAssign =
+    CLINIC_ADMIN_EXPERIENCE_ENABLED &&
+    roles.some((role) => ['owner_admin', 'operations_admin'].includes(role));
+  const canManageDemographics = canAssign || (!CLINIC_ADMIN_EXPERIENCE_ENABLED && isClinician);
   const detail = p ? await api(`/api/patients/${p.id}`) : null;
   const clinicians = canAssign
     ? (await api('/api/clinicians')).clinicians
@@ -372,12 +413,14 @@ async function patientModal(p = null) {
           })),
         })
       : '';
-  const clinicalFields = detail?.clinicalAccess || (!p && isClinician)
-    ? `${field('objective', 'Objetivo principal', 'textarea', { wide: true, placeholder: 'Opcional' })}${field('clinicalNotes', 'Observações profissionais', 'textarea', { wide: true, placeholder: 'Use apenas informações necessárias ao atendimento.' })}`
-    : '';
-  const demographicFields = !p || canAssign
-    ? `${field('name', 'Nome completo', 'text', { required: true, wide: true, placeholder: 'Nome do paciente' })}${field('email', 'E-mail', 'email')}${field('phone', 'Telefone', 'tel')}${field('birthDate', 'Data de nascimento', 'date')}${field('status', 'Status', 'select', { options: ['Ativo', 'Em pausa', 'Arquivado'] })}`
-    : '<p class="muted wide">Dados cadastrais são gerenciados pela equipe administrativa.</p>';
+  const clinicalFields =
+    detail?.clinicalAccess || (!p && isClinician)
+      ? `${field('objective', 'Objetivo principal', 'textarea', { wide: true, placeholder: 'Opcional' })}${field('clinicalNotes', 'Observações profissionais', 'textarea', { wide: true, placeholder: 'Use apenas informações necessárias ao atendimento.' })}`
+      : '';
+  const demographicFields =
+    !p || canManageDemographics
+      ? `${field('name', 'Nome completo', 'text', { required: true, wide: true, placeholder: 'Nome do paciente' })}${field('email', 'E-mail', 'email')}${field('phone', 'Telefone', 'tel')}${field('birthDate', 'Data de nascimento', 'date')}${field('status', 'Status', 'select', { options: ['Ativo', 'Em pausa', 'Arquivado'] })}`
+      : '<p class="muted wide">Dados cadastrais são gerenciados pela equipe administrativa.</p>';
   openModal(
     p ? 'Editar paciente' : 'Cadastrar paciente',
     p ? 'Atualize os dados cadastrais.' : 'Informações mínimas para iniciar o acompanhamento.',
@@ -385,7 +428,7 @@ async function patientModal(p = null) {
     'Salvar paciente',
     async (d) => {
       const payload = { ...d };
-    const primaryProfessionalId = payload.primaryProfessionalId || '';
+      const primaryProfessionalId = payload.primaryProfessionalId || '';
       const supportProfessionalIds = payload.supportProfessionalIds || [];
       delete payload.primaryProfessionalId;
       delete payload.supportProfessionalIds;
@@ -449,7 +492,7 @@ function patientsPage() {
   );
   $$('[data-open]').forEach((x) => (x.onclick = () => patientProfile(x.dataset.open)));
 }
-async function patientProfile(id) {
+async function patientProfile(id, activeTab = 'overview') {
   const d = await api(`/api/patients/${id}`);
   state.patientData = d;
   state.patient = d.patient;
@@ -462,7 +505,7 @@ async function patientProfile(id) {
     navigate('patients');
   };
   $('#content').innerHTML =
-    `<div class="page-heading"><div style="display:flex;align-items:center;gap:13px"><div class="patient-initial" style="width:48px;height:48px;font-size:18px">${esc(p.name[0].toUpperCase())}</div><div><h1>${esc(p.name)}</h1><p>${esc(p.email || 'E-mail não informado')} · <span class="status-pill">${esc(p.status)}</span></p></div></div><div style="display:flex;gap:8px"><button class="button" id="edit-patient">Editar cadastro</button><button class="button primary" id="add-assessment">＋ Avaliação</button></div></div><div class="detail-tabs"><button class="tab active" data-tab="overview">Visão geral</button><button class="tab" data-tab="assessments">Avaliações</button><button class="tab" data-tab="appointments">Consultas</button><button class="tab" data-tab="goals">Metas</button><button class="tab" data-tab="clinical">Histórico clínico</button></div><div id="patient-tab-content"></div>`;
+    `<div class="page-heading"><div style="display:flex;align-items:center;gap:13px"><div class="patient-initial" style="width:48px;height:48px;font-size:18px">${esc(p.name[0].toUpperCase())}</div><div><h1>${esc(p.name)}</h1><p>${esc(p.email || 'E-mail não informado')} · <span class="status-pill">${esc(p.status)}</span></p></div></div><div style="display:flex;gap:8px"><button class="button" id="edit-patient">Editar cadastro</button><button class="button primary" id="add-assessment">＋ Avaliação</button></div></div><div class="detail-tabs"><button class="tab active" data-tab="overview">Visão geral</button><button class="tab" data-tab="meal-plans">Plano alimentar</button><button class="tab" data-tab="assessments">Avaliações</button><button class="tab" data-tab="appointments">Consultas</button><button class="tab" data-tab="goals">Metas</button><button class="tab" data-tab="clinical">Histórico clínico</button></div><div id="patient-tab-content"></div>`;
   $('#edit-patient').onclick = () => patientModal(p);
   $('#add-assessment').hidden = !d.clinicalAccess;
   if (d.clinicalAccess) $('#add-assessment').onclick = () => assessmentModal(p.id);
@@ -492,13 +535,15 @@ async function patientProfile(id) {
   if (portalExists && portalStatus !== 'revoked') {
     const accessButton = document.createElement('button');
     accessButton.className = portalStatus === 'suspended' ? 'button primary' : 'button subtle';
-    accessButton.textContent = portalStatus === 'suspended' ? 'Reativar portal' : 'Suspender portal';
+    accessButton.textContent =
+      portalStatus === 'suspended' ? 'Reativar portal' : 'Suspender portal';
     accessButton.hidden = !d.clinicalAccess;
-    accessButton.onclick = () => updatePatientPortalAccess(
-      p.id,
-      portalStatus === 'suspended' ? 'active' : 'suspended',
-      p.name,
-    );
+    accessButton.onclick = () =>
+      updatePatientPortalAccess(
+        p.id,
+        portalStatus === 'suspended' ? 'active' : 'suspended',
+        p.name,
+      );
     profileActions.prepend(accessButton);
 
     const revokeButton = document.createElement('button');
@@ -517,7 +562,11 @@ async function patientProfile(id) {
     profileActions.prepend(resetButton);
   }
   if (!d.clinicalAccess)
-    $$('[data-tab="assessments"], [data-tab="goals"], [data-tab="clinical"]').forEach((tab) => { tab.hidden = true; });
+    $$(
+      '[data-tab="meal-plans"], [data-tab="assessments"], [data-tab="goals"], [data-tab="clinical"]',
+    ).forEach((tab) => {
+      tab.hidden = true;
+    });
   $$('[data-tab]').forEach(
     (x) =>
       (x.onclick = () => {
@@ -525,7 +574,8 @@ async function patientProfile(id) {
         renderPatientTab(x.dataset.tab);
       }),
   );
-  renderPatientTab('overview');
+  $$('[data-tab]').forEach((tab) => tab.classList.toggle('active', tab.dataset.tab === activeTab));
+  await renderPatientTab(activeTab);
 }
 async function updatePatientPortalAccess(patientId, status, patientName) {
   const messages = {
@@ -539,15 +589,19 @@ async function updatePatientPortalAccess(patientId, status, patientName) {
       method: 'PATCH',
       body: JSON.stringify({ status }),
     });
-    toast(status === 'active' ? 'Acesso ao portal reativado.' : status === 'suspended'
-      ? 'Acesso ao portal suspenso.'
-      : 'Acesso ao portal revogado.');
+    toast(
+      status === 'active'
+        ? 'Acesso ao portal reativado.'
+        : status === 'suspended'
+          ? 'Acesso ao portal suspenso.'
+          : 'Acesso ao portal revogado.',
+    );
     await patientProfile(patientId);
   } catch (error) {
     toast(error.message, true);
   }
 }
-function renderPatientTab(tab) {
+async function renderPatientTab(tab) {
   const d = state.patientData,
     p = d.patient,
     ass = d.assessments,
@@ -566,6 +620,31 @@ function renderPatientTab(tab) {
         (x.onclick = () => {
           $$('[data-tab]').forEach((y) => y.classList.toggle('active', x === y));
           renderPatientTab(x.dataset.tab);
+        }),
+    );
+  } else if (tab === 'meal-plans') {
+    const plans = (await api('/api/meal-plans')).mealPlans.filter(
+      (plan) => plan.patientId === p.id,
+    );
+    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Plano alimentar</h2><p>Planos vinculados a ${esc(p.name)}</p></div><button class="button primary" id="add-patient-plan">＋ Novo plano</button></div>${plans.length ? `<div class="plan-list">${plans.map((plan) => `<article class="plan-card"><div class="plan-card-head"><div class="plan-card-title"><h2>${esc(plan.name)}</h2><p>${plan.latestVersion?.mealCount || 0} refeições · ${plan.versionCount} ${plan.versionCount === 1 ? 'versão' : 'versões'}</p></div><span class="plan-status ${plan.status === 'published' ? 'published' : ''}">${plan.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-actions"><button class="button" data-patient-edit-plan="${esc(plan.id)}">${plan.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${plan.status === 'draft' ? `<button class="button primary" data-patient-publish-plan="${esc(plan.id)}">Publicar versão</button>` : ''}</div></article>`).join('')}</div>` : '<div class="empty-inline">Nenhum plano alimentar para este paciente.</div>'}</section>`;
+    $('#add-patient-plan').onclick = () => mealPlanEditor(null, p.id);
+    $$('[data-patient-edit-plan]').forEach(
+      (button) =>
+        (button.onclick = async () => {
+          const { mealPlan } = await api(`/api/meal-plans/${button.dataset.patientEditPlan}`);
+          if (mealPlan.patientId !== p.id)
+            return toast('Plano não pertence a este paciente.', true);
+          mealPlanEditor(mealPlan, p.id);
+        }),
+    );
+    $$('[data-patient-publish-plan]').forEach(
+      (button) =>
+        (button.onclick = async () => {
+          await api(`/api/meal-plans/${button.dataset.patientPublishPlan}/publish`, {
+            method: 'POST',
+            body: '{}',
+          });
+          await patientProfile(p.id, 'meal-plans');
         }),
     );
   } else if (tab === 'assessments') {
@@ -664,9 +743,10 @@ function appointmentModal(patientId = null) {
   openModal(
     'Agendar consulta',
     'Horários são apresentados no fuso local do seu dispositivo.',
-    `${field('patientId', 'Paciente', 'select', { options: state.patients.filter((p) => p.status !== 'Arquivado').map((p) => ({ value: p.id, label: p.name })) })}${field('start', 'Data e horário', 'datetime-local', { required: true })}${field('duration', 'Duração (minutos)', 'number', { min: '15', step: '5', placeholder: '50' })}${field('type', 'Tipo de atendimento', 'select', { options: ['Presencial', 'On-line', 'Outro'] })}${field('notes', 'Observações', 'textarea', { wide: true })}`,
+    `${patientId ? `<input type="hidden" name="patientId" value="${esc(patientId)}">` : field('patientId', 'Paciente', 'select', { required: true, options: state.patients.filter((p) => p.status !== 'Arquivado').map((p) => ({ value: p.id, label: p.name })) })}${field('start', 'Data e horário', 'datetime-local', { required: true })}${field('duration', 'Duração (minutos)', 'number', { min: '15', step: '5', placeholder: '50' })}${field('type', 'Tipo de atendimento', 'select', { options: ['Presencial', 'On-line', 'Outro'] })}${field('notes', 'Observações', 'textarea', { wide: true })}`,
     'Agendar',
     async (data) => {
+      data.patientId = patientId || data.patientId;
       data.start = new Date(data.start).toISOString();
       await api('/api/appointments', { method: 'POST', body: JSON.stringify(data) });
       toast('Consulta agendada');
@@ -674,7 +754,6 @@ function appointmentModal(patientId = null) {
       else await dashboard();
     },
   );
-  if (patientId) $('#modal-form [name=patientId]').value = patientId;
   $('#modal-form [name=duration]').value = '50';
   const dt = new Date(Date.now() + 3600000);
   dt.setMinutes(Math.ceil(dt.getMinutes() / 15) * 15, 0, 0);
@@ -690,16 +769,16 @@ function goalModal(patientId = null) {
   openModal(
     'Criar meta',
     'Defina um objetivo individual para o acompanhamento.',
-    `${field('patientId', 'Paciente', 'select', { options: state.patients.map((p) => ({ value: p.id, label: p.name })) })}${field('category', 'Categoria', 'select', { options: ['Hábitos', 'Rotina', 'Hidratação', 'Alimentação', 'Acompanhamento', 'Outra'] })}${field('description', 'Descrição da meta', 'textarea', { required: true, wide: true, placeholder: 'Ex.: organizar horários de refeições conforme rotina' })}${field('dueDate', 'Prazo (opcional)', 'date')}`,
+    `${patientId ? `<input type="hidden" name="patientId" value="${esc(patientId)}">` : field('patientId', 'Paciente', 'select', { required: true, options: state.patients.map((p) => ({ value: p.id, label: p.name })) })}${field('category', 'Categoria', 'select', { options: ['Hábitos', 'Rotina', 'Hidratação', 'Alimentação', 'Acompanhamento', 'Outra'] })}${field('description', 'Descrição da meta', 'textarea', { required: true, wide: true, placeholder: 'Ex.: organizar horários de refeições conforme rotina' })}${field('dueDate', 'Prazo (opcional)', 'date')}`,
     'Criar meta',
     async (data) => {
+      data.patientId = patientId || data.patientId;
       await api('/api/goals', { method: 'POST', body: JSON.stringify(data) });
       toast('Meta criada');
       if (state.patient) await patientProfile(state.patient.id);
       else goalsPage();
     },
   );
-  if (patientId) $('#modal-form [name=patientId]').value = patientId;
 }
 async function agendaPage() {
   const d = await api('/api/appointments');
@@ -747,36 +826,33 @@ function showOnboardingShell() {
 }
 async function workspaceSetup() {
   showOnboardingShell();
-  $('#content').innerHTML = `<section class="panel onboarding-panel"><p class="eyebrow">CONFIGURE SEU ACESSO</p><h1>Como você vai usar o NutriTrack?</h1><p class="muted">Crie seu consultório ou entre em uma equipe por convite.</p><div class="onboarding-options"><article class="onboarding-option"><p class="eyebrow">CONSULTÓRIO PRÓPRIO</p><h2>Atendo por conta própria</h2><p>Escolha um nome para o consultório. Depois, você poderá convidar outras pessoas para a equipe.</p><form id="independent-workspace-form"><div class="field"><label for="independent-workspace-name">Nome do consultório</label><input id="independent-workspace-name" name="name" required maxlength="120" placeholder="Ex.: Consultório Ana Maria"></div><label class="onboarding-checkbox"><input type="checkbox" name="clinician"><span>Também vou atender pacientes e preciso de acesso clínico.</span></label><button class="button primary full">Criar meu consultório</button><p class="form-error" id="independent-error"></p></form></article><article class="onboarding-option"><p class="eyebrow">ENTRAR EM UMA EQUIPE</p><h2>Tenho um convite</h2><p>Cole o link enviado pela responsável pelo consultório. Seu acesso seguirá o convite.</p><form id="join-workspace-form"><div class="field"><label for="workspace-invite-input">Link do convite</label><input id="workspace-invite-input" name="invite" required placeholder="Cole aqui o link recebido"></div><button class="button full">Aceitar convite</button><p class="form-error" id="join-error"></p></form></article></div></section>`;
+  $('#content').innerHTML =
+    `<section class="panel onboarding-panel"><p class="eyebrow">ESPAÇO PROFISSIONAL</p><h1>Configure seu espaço nutricional</h1><p class="muted">O NutriTrack está temporariamente disponível para atendimento individual de nutricionistas.</p><article class="onboarding-option"><form id="independent-workspace-form"><div class="field"><label for="independent-workspace-name">Nome do espaço profissional</label><input id="independent-workspace-name" name="name" required maxlength="120" value="Consultório de ${esc(state.user.name)}"></div><button class="button primary full">Continuar</button><p class="form-error" id="independent-error"></p></form></article></section>`;
   $('#independent-workspace-form').onsubmit = async (event) => {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     try {
       const result = await api('/api/workspaces', {
         method: 'POST',
-        body: JSON.stringify({ name: form.get('name'), type: 'individual', clinician: form.has('clinician') }),
+        body: JSON.stringify({
+          name: form.get('name'),
+          type: 'individual',
+          clinician: true,
+        }),
       });
       localStorage.setItem('nutritrack-workspace-id', result.workspace.id);
       location.reload();
-    } catch (error) { $('#independent-error').textContent = error.message; }
-  };
-  $('#join-workspace-form').onsubmit = async (event) => {
-    event.preventDefault();
-    const input = new FormData(event.currentTarget).get('invite').trim();
-    let token = input;
-    try { token = new URL(input, location.origin).searchParams.get('workspace_invite') || input; } catch {}
-    try {
-      const result = await api('/api/workspace-invitations/accept', { method: 'POST', body: JSON.stringify({ token }) });
-      localStorage.setItem('nutritrack-workspace-id', result.workspace.id);
-      location.reload();
-    } catch (error) { $('#join-error').textContent = error.message; }
+    } catch (error) {
+      $('#independent-error').textContent = error.message;
+    }
   };
 }
 async function legacyWorkspaceOnboarding() {
   const returnToWorkspace = state.workspaces.length > 0;
   const preview = await api('/api/workspaces/legacy-preview');
   showOnboardingShell();
-  $('#content').innerHTML = `<section class="panel" style="max-width:760px;margin:48px auto;padding:28px"><p class="eyebrow">CONFIGURAÇÃO DO CONSULTÓRIO</p><h1>Organize seu espaço de trabalho</h1><p class="muted">Sua conta já existia antes da criação de workspaces. Esta etapa reúne seus registros antigos em um consultório e cria um backup antes da migração. Nenhum paciente será atribuído clinicamente sem sua seleção.</p><form id="legacy-workspace-form"><div class="form-grid"><div class="field wide"><label for="legacy-workspace-name">Nome do consultório</label><input id="legacy-workspace-name" name="name" required maxlength="120" value="Consultório de ${esc(state.user.name)}"></div><div class="field wide"><label class="auth-clinician-option"><input type="checkbox" name="clinician" id="legacy-clinician"> Também vou atender pacientes neste consultório</label></div></div>${preview.patients.length ? `<h2 style="font-size:16px;margin-top:26px">Atribuição clínica principal</h2><p class="muted">Marque somente os pacientes que você atende. Os demais registros ficarão acessíveis administrativamente.</p><div class="legacy-patient-list">${preview.patients.map((p) => `<label class="legacy-patient"><input type="checkbox" name="primaryPatientIds" value="${esc(p.id)}"><span>${esc(p.name)}</span></label>`).join('')}</div>` : '<p class="empty-inline" style="margin-top:22px">Não há pacientes antigos para migrar.</p>'}<div class="modal-actions" style="margin-top:24px">${returnToWorkspace ? '<button type="button" class="button" id="cancel-legacy-migration">Voltar sem migrar</button>' : ''}<button class="button primary">Criar consultório e organizar registros</button></div><p id="legacy-error" class="form-error"></p></form></section>`;
+  $('#content').innerHTML =
+    `<section class="panel" style="max-width:760px;margin:48px auto;padding:28px"><p class="eyebrow">CONFIGURAÇÃO DO CONSULTÓRIO</p><h1>Organize seu espaço de trabalho</h1><p class="muted">Sua conta já existia antes da criação de workspaces. Esta etapa reúne seus registros antigos em um consultório e cria um backup antes da migração. Nenhum paciente será atribuído clinicamente sem sua seleção.</p><form id="legacy-workspace-form"><div class="form-grid"><div class="field wide"><label for="legacy-workspace-name">Nome do consultório</label><input id="legacy-workspace-name" name="name" required maxlength="120" value="Consultório de ${esc(state.user.name)}"></div><div class="field wide"><label class="auth-clinician-option"><input type="checkbox" name="clinician" id="legacy-clinician"> Também vou atender pacientes neste consultório</label></div></div>${preview.patients.length ? `<h2 style="font-size:16px;margin-top:26px">Atribuição clínica principal</h2><p class="muted">Marque somente os pacientes que você atende. Os demais registros ficarão acessíveis administrativamente.</p><div class="legacy-patient-list">${preview.patients.map((p) => `<label class="legacy-patient"><input type="checkbox" name="primaryPatientIds" value="${esc(p.id)}"><span>${esc(p.name)}</span></label>`).join('')}</div>` : '<p class="empty-inline" style="margin-top:22px">Não há pacientes antigos para migrar.</p>'}<div class="modal-actions" style="margin-top:24px">${returnToWorkspace ? '<button type="button" class="button" id="cancel-legacy-migration">Voltar sem migrar</button>' : ''}<button class="button primary">Criar consultório e organizar registros</button></div><p id="legacy-error" class="form-error"></p></form></section>`;
   $('#cancel-legacy-migration')?.addEventListener('click', () => location.reload());
   $('#legacy-workspace-form').onsubmit = async (event) => {
     event.preventDefault();
@@ -784,7 +860,8 @@ async function legacyWorkspaceOnboarding() {
     const clinician = form.has('clinician');
     const primaryPatientIds = form.getAll('primaryPatientIds');
     if (primaryPatientIds.length && !clinician) {
-      $('#legacy-error').textContent = 'Marque que também atenderá clinicamente para atribuir pacientes.';
+      $('#legacy-error').textContent =
+        'Marque que também atenderá clinicamente para atribuir pacientes.';
       return;
     }
     try {
@@ -824,54 +901,92 @@ const roleNames = {
 };
 async function teamPage() {
   if (!state.activeRoles.some((role) => ['owner_admin', 'operations_admin'].includes(role))) {
-    $('#content').innerHTML = '<section class="empty"><h3>Acesso restrito</h3><p>Somente proprietárias e administradoras operacionais podem gerir a equipe.</p></section>';
+    $('#content').innerHTML =
+      '<section class="empty"><h3>Acesso restrito</h3><p>Somente proprietárias e administradoras operacionais podem gerir a equipe.</p></section>';
     return;
   }
   const { members } = await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members`);
   const teamMembers = members.filter((member) => !member.roles.includes('clinician'));
   const isOwner = state.activeRoles.includes('owner_admin');
-  $('#content').innerHTML = `${heading('Equipe', 'Gerencie quem cuida da administração deste consultório.', `<button class="button primary" data-go="invitations">＋ Ver convites</button>`)}
+  $('#content').innerHTML =
+    `${heading('Equipe', 'Gerencie quem cuida da administração deste consultório.', `<button class="button primary" data-go="invitations">＋ Ver convites</button>`)}
     <section class="panel team-members-panel"><div class="panel-head"><div><h2>Equipe administrativa</h2><p>${teamMembers.length} membro${teamMembers.length === 1 ? '' : 's'} na equipe deste consultório</p></div></div>${teamMembers.length ? teamMembers.map((member) => `<article class="team-member"><div class="avatar">${esc(member.name.trim()[0]?.toUpperCase() || '?')}</div><div class="team-member-copy"><strong>${esc(member.name)}</strong><small>${esc(member.email)} · ${member.roles.map((role) => esc(roleNames[role] || role)).join(', ')}</small></div>${member.userId === state.user.id ? '<span class="status-pill">Você</span>' : `<div class="team-member-actions"><button class="button" data-roles="${esc(member.id)}">Papéis</button><button class="button subtle" data-remove-member="${esc(member.id)}">Remover</button></div>`}</article>`).join('') : '<div class="empty-inline">Não há colaboradores administrativos além dos profissionais clínicos.</div>'}</section>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
-  $$('[data-roles]').forEach((button) => (button.onclick = () => {
-    const member = members.find((item) => item.id === button.dataset.roles);
-    const allowed = ['clinician', 'assistant', ...(isOwner ? ['operations_admin', 'owner_admin'] : [])];
-    const checks = allowed.map((role) => `<label class="legacy-patient"><input type="checkbox" name="role" value="${role}" ${member.roles.includes(role) ? 'checked' : ''}><span>${esc(roleNames[role])}</span></label>`).join('');
-    openModal('Papéis do membro', `Acessos atuais de ${esc(member.name)}. Acesso clínico a um paciente ainda exige atribuição explícita.`, checks, 'Salvar papéis', async ({ role }) => {
-      const roles = Array.isArray(role) ? role : role ? [role] : [];
-      if (!roles.length) throw Error('Selecione pelo menos um papel.');
-      await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members/${encodeURIComponent(member.id)}`, { method: 'PATCH', body: JSON.stringify({ roles }) });
-      await teamPage();
-      toast('Papéis atualizados');
-    });
-    $('#modal-form').querySelectorAll('input[name="role"]').forEach((input) => { input.type = 'checkbox'; });
-  }));
-  $$('[data-remove-member]').forEach((button) => (button.onclick = async () => {
-    const member = members.find((item) => item.id === button.dataset.removeMember);
-    if (!confirm(`Remover ${member.name} da equipe deste consultório?`)) return;
-    try {
-      await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/members/${encodeURIComponent(member.id)}`, { method: 'DELETE' });
-      toast('Acesso removido do consultório');
-      await teamPage();
-    } catch (error) { toast(error.message, true); }
-  }));
+  $$('[data-roles]').forEach(
+    (button) =>
+      (button.onclick = () => {
+        const member = members.find((item) => item.id === button.dataset.roles);
+        const allowed = [
+          'clinician',
+          'assistant',
+          ...(isOwner ? ['operations_admin', 'owner_admin'] : []),
+        ];
+        const checks = allowed
+          .map(
+            (role) =>
+              `<label class="legacy-patient"><input type="checkbox" name="role" value="${role}" ${member.roles.includes(role) ? 'checked' : ''}><span>${esc(roleNames[role])}</span></label>`,
+          )
+          .join('');
+        openModal(
+          'Papéis do membro',
+          `Acessos atuais de ${esc(member.name)}. Acesso clínico a um paciente ainda exige atribuição explícita.`,
+          checks,
+          'Salvar papéis',
+          async ({ role }) => {
+            const roles = Array.isArray(role) ? role : role ? [role] : [];
+            if (!roles.length) throw Error('Selecione pelo menos um papel.');
+            await api(
+              `/api/workspaces/${encodeURIComponent(state.workspaceId)}/members/${encodeURIComponent(member.id)}`,
+              { method: 'PATCH', body: JSON.stringify({ roles }) },
+            );
+            await teamPage();
+            toast('Papéis atualizados');
+          },
+        );
+        $('#modal-form')
+          .querySelectorAll('input[name="role"]')
+          .forEach((input) => {
+            input.type = 'checkbox';
+          });
+      }),
+  );
+  $$('[data-remove-member]').forEach(
+    (button) =>
+      (button.onclick = async () => {
+        const member = members.find((item) => item.id === button.dataset.removeMember);
+        if (!confirm(`Remover ${member.name} da equipe deste consultório?`)) return;
+        try {
+          await api(
+            `/api/workspaces/${encodeURIComponent(state.workspaceId)}/members/${encodeURIComponent(member.id)}`,
+            { method: 'DELETE' },
+          );
+          toast('Acesso removido do consultório');
+          await teamPage();
+        } catch (error) {
+          toast(error.message, true);
+        }
+      }),
+  );
 }
 async function professionalsPage() {
   const { clinicians } = await api('/api/clinicians');
-  $('#content').innerHTML = `${heading('Profissionais', 'Nutricionistas que atendem neste consultório.', `<button class="button primary" data-go="invitations">＋ Convidar nutricionista</button>`)}
+  $('#content').innerHTML =
+    `${heading('Profissionais', 'Nutricionistas que atendem neste consultório.', `<button class="button primary" data-go="invitations">＋ Convidar nutricionista</button>`)}
     <section class="panel team-members-panel"><div class="panel-head"><div><h2>Nutricionistas</h2><p>Cada prontuário fica disponível somente para os profissionais designados.</p></div></div>${clinicians.length ? clinicians.map((person) => `<article class="team-member"><div class="avatar">${esc(person.name.trim()[0]?.toUpperCase() || '?')}</div><div class="team-member-copy"><strong>${esc(person.name)}</strong><small>${esc(person.email)} · ${person.assignedPatientCount} paciente${person.assignedPatientCount === 1 ? '' : 's'} atribuído${person.assignedPatientCount === 1 ? '' : 's'}</small></div></article>`).join('') : '<div class="empty-inline">Nenhum nutricionista foi convidado para esta clínica.</div>'}</section>
     <section class="panel team-members-panel"><div class="panel-head"><div><h2>Atribuições clínicas</h2><p>Escolha quem acompanha cada paciente na tela de cadastro.</p></div><button class="button" data-go="patients">Abrir pacientes</button></div></section>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
 }
 async function invitationsPage() {
   if (!state.activeRoles.some((role) => ['owner_admin', 'operations_admin'].includes(role))) {
-    $('#content').innerHTML = '<section class="empty"><h3>Acesso restrito</h3><p>Seu papel não permite criar ou acompanhar convites.</p></section>';
+    $('#content').innerHTML =
+      '<section class="empty"><h3>Acesso restrito</h3><p>Seu papel não permite criar ou acompanhar convites.</p></section>';
     return;
   }
   const url = `/api/workspaces/${encodeURIComponent(state.workspaceId)}/invitations`;
   const { invitations } = await api(url);
   const isOwner = state.activeRoles.includes('owner_admin');
-  $('#content').innerHTML = `${heading('Convites', 'Convide pessoas para participar deste consultório.')}
+  $('#content').innerHTML =
+    `${heading('Convites', 'Convide pessoas para participar deste consultório.')}
     <section class="panel team-invite-panel"><div class="panel-head"><div><h2>Novo convite</h2><p>O convite pode ser usado uma vez e expira em sete dias. Envie o link à pessoa convidada pelo e-mail informado.</p></div></div><form id="workspace-invite-form" class="team-invite-form"><div class="field"><label for="invite-email">E-mail da pessoa</label><input id="invite-email" name="email" required type="email" autocomplete="email" placeholder="pessoa@exemplo.com"></div><div class="field"><label for="invite-role">Acesso inicial</label><select id="invite-role" name="role" required><option value="clinician">Nutricionista</option><option value="assistant">Assistente sem prontuário</option>${isOwner ? '<option value="operations_admin">Administradora operacional</option>' : ''}</select></div><button class="button primary">Criar convite</button></form><div id="invite-feedback" class="invite-feedback" role="status" aria-live="polite"></div><div id="invite-result"></div></section>
     <section class="panel team-members-panel"><div class="panel-head"><div><h2>Convites enviados</h2><p>${invitations.length} registro${invitations.length === 1 ? '' : 's'} de convite</p></div></div>${invitations.length ? invitations.map((invite) => `<article class="team-member"><div class="team-member-copy"><strong>${esc(invite.email)}</strong><small>${invite.roles.map((role) => esc(roleNames[role] || role)).join(', ')} · ${invite.status === 'pending' ? 'Pendente' : invite.status === 'accepted' ? 'Aceito' : invite.status === 'expired' ? 'Expirado' : 'Cancelado'} · vence ${dateFmt(invite.expiresAt)}</small></div>${invite.status === 'pending' ? `<button class="button subtle" data-revoke-invite="${esc(invite.id)}">Cancelar convite</button>` : ''}</article>`).join('') : '<div class="empty-inline">Nenhum convite foi criado.</div>'}</section>`;
   const inviteForm = $('#workspace-invite-form');
@@ -886,7 +1001,10 @@ async function invitationsPage() {
     const submit = inviteForm.querySelector('button[type="submit"], button:not([type])');
     submit.disabled = true;
     try {
-      const response = await api(url, { method: 'POST', body: JSON.stringify({ email: form.get('email'), role: form.get('role') }) });
+      const response = await api(url, {
+        method: 'POST',
+        body: JSON.stringify({ email: form.get('email'), role: form.get('role') }),
+      });
       const inviteUrl = `${location.origin}/?workspace_invite=${encodeURIComponent(response.token)}`;
       result.innerHTML = `<div class="invite-created"><strong>Convite criado · vence ${dateFmt(response.expiresAt)}</strong><input id="generated-invite-link" readonly aria-label="Link do convite" value="${esc(inviteUrl)}"><button type="button" class="button" id="copy-invite-link">Copiar link</button><p>Envie o link à pessoa convidada. Ele funciona apenas para o e-mail informado.</p></div>`;
       $('#copy-invite-link').onclick = async () => {
@@ -903,7 +1021,8 @@ async function invitationsPage() {
       feedback.textContent = `Convite para ${form.get('email')} criado com sucesso.`;
       inviteForm.reset();
       const fresh = await api(url);
-      $('#content').querySelector('.team-members-panel').outerHTML = `<section class="panel team-members-panel"><div class="panel-head"><div><h2>Convites enviados</h2><p>${fresh.invitations.length} registro${fresh.invitations.length === 1 ? '' : 's'} de convite</p></div></div>${fresh.invitations.map((invite) => `<article class="team-member"><div class="team-member-copy"><strong>${esc(invite.email)}</strong><small>${invite.roles.map((role) => esc(roleNames[role] || role)).join(', ')} · ${invite.status === 'pending' ? 'Pendente' : invite.status === 'accepted' ? 'Aceito' : invite.status === 'expired' ? 'Expirado' : 'Cancelado'} · vence ${dateFmt(invite.expiresAt)}</small></div>${invite.status === 'pending' ? `<button class="button subtle" data-revoke-invite="${esc(invite.id)}">Cancelar convite</button>` : ''}</article>`).join('')}</section>`;
+      $('#content').querySelector('.team-members-panel').outerHTML =
+        `<section class="panel team-members-panel"><div class="panel-head"><div><h2>Convites enviados</h2><p>${fresh.invitations.length} registro${fresh.invitations.length === 1 ? '' : 's'} de convite</p></div></div>${fresh.invitations.map((invite) => `<article class="team-member"><div class="team-member-copy"><strong>${esc(invite.email)}</strong><small>${invite.roles.map((role) => esc(roleNames[role] || role)).join(', ')} · ${invite.status === 'pending' ? 'Pendente' : invite.status === 'accepted' ? 'Aceito' : invite.status === 'expired' ? 'Expirado' : 'Cancelado'} · vence ${dateFmt(invite.expiresAt)}</small></div>${invite.status === 'pending' ? `<button class="button subtle" data-revoke-invite="${esc(invite.id)}">Cancelar convite</button>` : ''}</article>`).join('')}</section>`;
       bindInvitationRevocation(url);
     } catch (error) {
       feedback.textContent = error.message || 'Não foi possível criar o convite.';
@@ -915,44 +1034,62 @@ async function invitationsPage() {
   bindInvitationRevocation(url);
 }
 function bindInvitationRevocation(url) {
-  $$('[data-revoke-invite]').forEach((button) => (button.onclick = async () => {
-    button.disabled = true;
-    try {
-      await api(`${url}/${encodeURIComponent(button.dataset.revokeInvite)}`, { method: 'DELETE' });
-      await invitationsPage();
-    } catch (error) {
-      button.disabled = false;
-      const feedback = $('#invite-feedback');
-      if (feedback) feedback.textContent = error.message;
-    }
-  }));
+  $$('[data-revoke-invite]').forEach(
+    (button) =>
+      (button.onclick = async () => {
+        button.disabled = true;
+        try {
+          await api(`${url}/${encodeURIComponent(button.dataset.revokeInvite)}`, {
+            method: 'DELETE',
+          });
+          await invitationsPage();
+        } catch (error) {
+          button.disabled = false;
+          const feedback = $('#invite-feedback');
+          if (feedback) feedback.textContent = error.message;
+        }
+      }),
+  );
 }
 async function clinicSettingsPage() {
   if (!state.activeRoles.includes('owner_admin')) {
-    $('#content').innerHTML = '<section class="empty"><h3>Acesso restrito</h3><p>Somente a proprietária pode alterar os dados do consultório.</p></section>';
+    $('#content').innerHTML =
+      '<section class="empty"><h3>Acesso restrito</h3><p>Somente a proprietária pode alterar os dados do consultório.</p></section>';
     return;
   }
   const workspace = state.workspaces.find((item) => item.id === state.workspaceId);
-  $('#content').innerHTML = `${heading('Clínica ou consultório', 'Atualize os dados deste consultório.')}
+  $('#content').innerHTML =
+    `${heading('Clínica ou consultório', 'Atualize os dados deste consultório.')}
     <section class="panel team-invite-panel"><form id="clinic-settings-form"><div class="field"><label for="clinic-name">Nome do consultório</label><input id="clinic-name" name="name" maxlength="120" required value="${esc(workspace.name)}"></div><p class="row-secondary">Tipo: ${workspace.type === 'clinic' ? 'Clínica ou consultório' : 'Consultório individual'}</p><div class="modal-actions"><button class="button primary">Salvar alterações</button></div><p id="clinic-settings-feedback" class="form-error" role="status"></p></form></section>`;
   $('#clinic-settings-form').onsubmit = async (event) => {
     event.preventDefault();
     try {
-      const result = await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}`, { method: 'PATCH', body: JSON.stringify({ name: new FormData(event.currentTarget).get('name') }) });
+      const result = await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: new FormData(event.currentTarget).get('name') }),
+      });
       workspace.name = result.workspace.name;
-      $('#workspace-current').textContent = contextDisplay({ workspace, experience: state.activeExperience, roles: state.activeRoles }).label;
+      $('#workspace-current').textContent = contextDisplay({
+        workspace,
+        experience: state.activeExperience,
+        roles: state.activeRoles,
+      }).label;
       $('#clinic-settings-feedback').textContent = 'Nome atualizado.';
-    } catch (error) { $('#clinic-settings-feedback').textContent = error.message; }
+    } catch (error) {
+      $('#clinic-settings-feedback').textContent = error.message;
+    }
   };
 }
 async function permissionsPage() {
   const { roles } = await api(`/api/workspaces/${encodeURIComponent(state.workspaceId)}/roles`);
-  $('#content').innerHTML = `${heading('Papéis e permissões', 'Veja o que cada função pode fazer no consultório.')}
+  $('#content').innerHTML =
+    `${heading('Papéis e permissões', 'Veja o que cada função pode fazer no consultório.')}
     <section class="panel team-members-panel"><div class="panel-head"><div><h2>Acessos por função</h2><p>Mesmo com acesso clínico, cada profissional só vê os prontuários que lhe foram atribuídos.</p></div></div><div class="permission-role-list">${roles.map((role) => `<article class="permission-role"><h3>${esc(role.name)}</h3><ul>${role.permissions.map((permission) => `<li>${esc(permission)}</li>`).join('')}</ul></article>`).join('')}</div><button class="button" data-go="team">Gerenciar acessos da equipe</button></section>`;
   $$('[data-go]').forEach((button) => (button.onclick = () => navigate(button.dataset.go)));
 }
 function availableContexts() {
   return state.workspaces.flatMap((workspace) => {
+    if (!CLINIC_ADMIN_EXPERIENCE_ENABLED && workspace.type === 'clinic') return [];
     const roles = workspace.roles || [];
     const contexts = [];
     if (roles.includes('clinician'))
@@ -979,28 +1116,61 @@ function contextDisplay(context) {
   };
 }
 function contextSelector() {
-  showOnboardingShell();
-  const contexts = availableContexts();
-  $('#content').innerHTML = `<section class="panel context-selector-panel"><p class="eyebrow">SELEÇÃO DE PERFIL</p><h1>Em qual perfil você deseja entrar?</h1><p class="muted">Você pode trocar de perfil sem sair da conta. O acesso aos prontuários depende da sua função e dos pacientes atribuídos a você.</p>${contexts.length ? `<div class="context-options">${contexts.map((context, index) => {
-    const display = contextDisplay(context);
-    return `<article class="context-option"><span class="context-option-icon" aria-hidden="true">${display.icon}</span><div><h2>${esc(display.title)}</h2><p>${esc(display.subtitle)}</p></div><button class="button primary" data-context-index="${index}">Entrar neste perfil</button></article>`;
-  }).join('')}</div>` : `<div class="empty-inline">Não encontramos um perfil ativo para sua conta. Peça à responsável pelo consultório para conferir seu acesso.</div>`}<p class="context-selector-error" id="context-selector-error" role="alert"></p></section>`;
-  $$('[data-context-index]').forEach((button) => (button.onclick = async () => {
-    button.disabled = true;
-    try {
-      const context = contexts[Number(button.dataset.contextIndex)];
-      const selected = await api('/api/workspaces/select', {
-        method: 'POST',
-        body: JSON.stringify({ workspaceId: context.workspaceId, experience: context.experience }),
-      });
-      await renderWorkspaceApp(selected);
-    } catch (error) {
-      $('#context-selector-error').textContent = error.message;
-      button.disabled = false;
-    }
-  }));
+  if (CLINIC_ADMIN_EXPERIENCE_ENABLED) {
+    showOnboardingShell();
+    const contexts = availableContexts();
+    $('#content').innerHTML =
+      `<section class="panel context-selector-panel"><p class="eyebrow">SELEÇÃO DE PERFIL</p><h1>Em qual perfil você deseja entrar?</h1>${
+        contexts
+          .map((context, index) => {
+            const display = contextDisplay(context);
+            return `<article class="context-option"><span class="context-option-icon">${display.icon}</span><div><h2>${esc(display.title)}</h2><p>${esc(display.subtitle)}</p></div><button class="button primary" data-context-index="${index}">Entrar neste perfil</button></article>`;
+          })
+          .join('') || '<div class="empty-inline">Nenhum perfil disponível para esta conta.</div>'
+      }<p id="context-selector-error" role="alert"></p></section>`;
+    $$('[data-context-index]').forEach(
+      (button) =>
+        (button.onclick = async () => {
+          const context = contexts[Number(button.dataset.contextIndex)];
+          try {
+            const selected = await api('/api/workspaces/select', {
+              method: 'POST',
+              body: JSON.stringify({
+                workspaceId: context.workspaceId,
+                experience: context.experience,
+              }),
+            });
+            await renderWorkspaceApp(selected);
+          } catch (error) {
+            $('#context-selector-error').textContent = error.message;
+          }
+        }),
+    );
+    return;
+  }
+  const context = availableContexts().find((item) => item.experience === 'clinical');
+  if (!context) {
+    showOnboardingShell();
+    $('#content').innerHTML =
+      '<section class="empty"><h3>Acesso clínico indisponível</h3><p>Esta versão do NutriTrack está disponível para nutricionistas. Entre em contato com a responsável pela sua conta para obter acesso clínico.</p></section>';
+    return;
+  }
+  api('/api/workspaces/select', {
+    method: 'POST',
+    body: JSON.stringify({ workspaceId: context.workspaceId, experience: 'clinical' }),
+  })
+    .then(renderWorkspaceApp)
+    .catch((error) => {
+      showOnboardingShell();
+      $('#content').innerHTML =
+        `<section class="empty"><h3>Não foi possível abrir o ambiente clínico</h3><p>${esc(error.message)}</p></section>`;
+    });
 }
 async function renderWorkspaceApp(selected) {
+  if (selected.experience !== 'clinical' || !selected.membership.roles.includes('clinician')) {
+    contextSelector();
+    return;
+  }
   state.workspaceId = selected.workspace.id;
   state.activeExperience = selected.experience;
   state.activeRoles = selected.membership.roles;
@@ -1009,18 +1179,30 @@ async function renderWorkspaceApp(selected) {
   const roles = selected.membership.roles;
   const isClinical = state.activeExperience === 'clinical';
   const canManageMembers = roles.some((role) => ['owner_admin', 'operations_admin'].includes(role));
-  const canCreatePatients = roles.some((role) => ['owner_admin', 'operations_admin', 'assistant', 'clinician'].includes(role));
-  $('.workspace-switcher').hidden = false;
+  const canCreatePatients = roles.some((role) =>
+    ['owner_admin', 'operations_admin', 'assistant', 'clinician'].includes(role),
+  );
+  $('.workspace-switcher').hidden = !CLINIC_ADMIN_EXPERIENCE_ENABLED;
   $('.nav-caption').hidden = false;
   $('#main-nav').hidden = false;
   $('.privacy-card').hidden = false;
   $('.topbar').hidden = false;
-  $('#workspace-current').textContent = contextDisplay({ workspace, experience: state.activeExperience, roles }).label;
-  $('#switch-context').onclick = () => contextSelector();
-  const legacyPreview = await api('/api/workspaces/legacy-preview');
-  $('#migrate-legacy').hidden = !legacyPreview.hasLegacyRecords || isClinical;
+  $('#workspace-current').textContent = contextDisplay({
+    workspace,
+    experience: state.activeExperience,
+    roles,
+  }).label;
+  const legacyPreview = CLINIC_ADMIN_EXPERIENCE_ENABLED
+    ? await api('/api/workspaces/legacy-preview')
+    : { hasLegacyRecords: false };
+  $('#migrate-legacy').hidden =
+    !CLINIC_ADMIN_EXPERIENCE_ENABLED || !legacyPreview.hasLegacyRecords || isClinical;
   $('#migrate-legacy').onclick = () => legacyWorkspaceOnboarding();
-  $('#new-workspace').hidden = isClinical || !roles.includes('owner_admin');
+  $('#new-workspace').hidden =
+    !CLINIC_ADMIN_EXPERIENCE_ENABLED || isClinical || !roles.includes('owner_admin');
+  $('#switch-context').hidden = !CLINIC_ADMIN_EXPERIENCE_ENABLED;
+  $('#switch-context').onclick = () => contextSelector();
+  $('#new-workspace').onclick = () => createWorkspaceModal();
   const items = [['dashboard', '⌁', 'Visão geral']];
   if (isClinical) {
     items.push(['patients', '♧', 'Pacientes']);
@@ -1044,7 +1226,12 @@ async function renderWorkspaceApp(selected) {
     if (roles.includes('owner_admin')) items.push(['clinic', '⌂', 'Clínica ou consultório']);
     $('.nav-caption').textContent = 'ADMINISTRAÇÃO';
   }
-  $('#main-nav').innerHTML = items.map(([page, icon, label]) => `<button class="nav-item" data-page="${page}"><span class="nav-icon">${icon}</span>${label}${page === 'patients' ? '<b id="patient-badge">0</b>' : ''}</button>`).join('');
+  $('#main-nav').innerHTML = items
+    .map(
+      ([page, icon, label]) =>
+        `<button class="nav-item" data-page="${page}"><span class="nav-icon">${icon}</span>${label}${page === 'patients' ? '<b id="patient-badge">0</b>' : ''}</button>`,
+    )
+    .join('');
   $$('.nav-item').forEach((item) => (item.onclick = () => navigate(item.dataset.page)));
   $('#top-new-patient').hidden = !canCreatePatients;
   $('#auth').hidden = true;
@@ -1054,14 +1241,18 @@ async function renderWorkspaceApp(selected) {
   $('#user-avatar').textContent = state.user.name.trim()[0].toUpperCase();
   $('#greeting').textContent = `Olá, ${state.user.name.trim().split(/\s+/)[0]}`;
   $('#today-label').textContent = new Date().toLocaleDateString('pt-BR', {
-    weekday: 'short', day: 'numeric', month: 'short',
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
   });
   await loadPatients();
   await navigate('dashboard');
 }
 async function showApp() {
   let account = await api('/api/me');
-  const pendingInvite = sessionStorage.getItem('nutritrack-workspace-invite');
+  const pendingInvite = CLINIC_ADMIN_EXPERIENCE_ENABLED
+    ? sessionStorage.getItem('nutritrack-workspace-invite')
+    : null;
   if (pendingInvite) {
     try {
       const result = await api('/api/workspace-invitations/accept', {
@@ -1085,24 +1276,14 @@ async function showApp() {
     else await workspaceSetup();
     return;
   }
-  $('#new-workspace').onclick = () => createWorkspaceModal();
   $('#user-name').textContent = state.user.name;
   $('#user-email').textContent = state.user.email;
   $('#user-avatar').textContent = state.user.name.trim()[0].toUpperCase();
   contextSelector();
 }
 function refreshAuthProfileFields() {
-  const registering = state.authMode === 'register';
-  const invited = !!sessionStorage.getItem('nutritrack-workspace-invite');
-  $('#auth-profile-fields').hidden = !registering || invited;
-  $('#auth-invite-notice').hidden = !registering || !invited;
-  const clinic = registering && !invited && $('#auth-profile-type').value === 'clinic';
-  $('#auth-workspace-name-field').hidden = !clinic;
-  $('#auth-workspace-name').required = clinic;
-  $('#auth-clinician-option').hidden = !clinic;
-  if (!clinic) $('#auth-clinician').checked = false;
+  $('#auth-profile-type').value = 'nutritionist';
 }
-$('#auth-profile-type').onchange = refreshAuthProfileFields;
 $('#auth-form').onsubmit = async (e) => {
   e.preventDefault();
   $('#auth-error').textContent = '';
@@ -1110,13 +1291,8 @@ $('#auth-form').onsubmit = async (e) => {
     payload = { email: $('#auth-email').value, password: $('#auth-password').value };
   if (state.authMode === 'register') {
     payload.name = $('#auth-name').value;
-    if (!sessionStorage.getItem('nutritrack-workspace-invite')) {
-      payload.profileType = $('#auth-profile-type').value;
-      if (payload.profileType === 'clinic') {
-        payload.workspaceName = $('#auth-workspace-name').value;
-        payload.clinician = $('#auth-clinician').checked;
-      }
-    }
+    if (!sessionStorage.getItem('nutritrack-workspace-invite'))
+      payload.profileType = 'nutritionist';
   }
   try {
     await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
@@ -1141,8 +1317,10 @@ $('#auth-toggle').onclick = () => {
   refreshAuthProfileFields();
 };
 const workspaceInviteToken = new URLSearchParams(location.search).get('workspace_invite');
-if (workspaceInviteToken) {
+if (workspaceInviteToken && CLINIC_ADMIN_EXPERIENCE_ENABLED) {
   sessionStorage.setItem('nutritrack-workspace-invite', workspaceInviteToken);
+  history.replaceState(null, '', location.pathname + location.hash);
+} else if (workspaceInviteToken) {
   history.replaceState(null, '', location.pathname + location.hash);
 }
 $('#logout').onclick = async () => {
