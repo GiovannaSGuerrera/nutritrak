@@ -675,6 +675,7 @@ function appointmentModal(patientId = null) {
     },
   );
   if (patientId) $('#modal-form [name=patientId]').value = patientId;
+  $('#modal-form [name=duration]').value = '50';
   const dt = new Date(Date.now() + 3600000);
   dt.setMinutes(Math.ceil(dt.getMinutes() / 15) * 15, 0, 0);
   $('#modal-form [name=start]').value = new Date(dt.getTime() - dt.getTimezoneOffset() * 60000)
