@@ -4,7 +4,7 @@
 
 O Neon mostrou janela de histórico de seis horas. Foi criado um snapshot manual de `production`, identificado por `2026-11-23 22:06:33 UTC`. O painel confirmou um snapshot e nenhum agendamento; o plano gratuito exige upgrade para agendar snapshots. Nenhuma restauração ou exclusão foi feita em produção.
 
-O banco possui o papel `neondb_owner`. A separação de permissões está preparada em `runtime-grants.sql`, mas ainda não foi aplicada em produção. MFA das contas administrativas e alertas externos não foram confirmados.
+Os grupos `nutritrack_runtime` e `nutritrack_backup` foram aplicados em produção com autorização do titular. A consulta no Neon confirmou NOLOGIN, sem superusuário, criação de bancos, criação de papéis ou CREATE no schema public. A aplicação ainda usa a conexão anterior: faltam os logins dedicados e a troca de DATABASE_URL. MFA das contas administrativas e alertas externos não foram confirmados.
 
 ## Separar execução e migração
 
@@ -37,7 +37,7 @@ node apps/api/dist/backup.js restore backups/copia.ntbackup
 
 A restauração recusa tabelas com dados e faz rollback em erro. É uma cópia lógica das tabelas conhecidas desta versão, não um dump completo de papéis, extensões ou infraestrutura. Ao adicionar tabelas ou alterar o schema, atualizar e testar a ferramenta.
 
-Proposta operacional a aprovar: cópia diária criptografada em armazenamento privado externo, retenção de 30 dias e ensaio mensal de restauração. A rotina ainda não está agendada; falta escolher o armazenamento e configurar um executor que funcione sem este computador ligado. Meta inicial de perda máxima de 24 horas depende desse agendamento, e o tempo de recuperação precisa ser medido no volume real.
+Proposta operacional a aprovar: cópia diária criptografada em armazenamento privado externo, retenção de 30 dias e ensaio mensal de restauração. Por decisão do titular nesta etapa, manter o snapshot manual e definir o armazenamento automático depois. A rotina não está agendada; falta escolher o armazenamento e configurar um executor que funcione sem este computador ligado. Meta inicial de perda máxima de 24 horas depende desse agendamento, e o tempo de recuperação precisa ser medido no volume real.
 
 ## Monitoramento e manutenção
 
