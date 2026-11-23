@@ -28,6 +28,10 @@ Os dados da versão online ficam no PostgreSQL do Neon. A aplicação está hosp
 
 Ainda estamos trabalhando para preparar o projeto para uso com dados reais. Entre os próximos passos estão melhorias de segurança e desempenho, recuperação de acesso por e-mail e relatórios para exportação.
 
+## Proteção dos dados
+
+As proteções e pendências estão registradas no [guia de operação](docs/security/operations.md) e no [rascunho de privacidade](docs/security/privacy.md). Continue usando dados fictícios enquanto a preparação para uso real estiver em andamento.
+
 ## Para quem quer mexer no código
 
 As instruções para rodar uma cópia local, configurar o banco e executar os testes estão abaixo.
@@ -47,7 +51,7 @@ O projeto usa workspaces pnpm para separar API e interface. A API é escrita em 
 
 **Implementado:** cadastro/login profissional, pacientes e perfis, avaliações antropométricas parciais, cálculos de IMC e composição estimada, agenda com detecção de conflitos, metas, dashboard com dados persistidos, rascunhos e versionamento de planos alimentares, publicação profissional com validações e portal separado do paciente. O portal usa convite de uso único e mostra somente versões publicadas. O profissional também pode gerar um link manual de redefinição de senha para a paciente; esse link expira em 24 horas e só pode ser usado uma vez.
 
-**Próximas etapas:** consultas ao banco filtradas por profissional com paginação, ampliação da tipagem estrita, limitação de tentativas, recuperação de acesso por e-mail, notificações de publicação, relatórios exportáveis e preparação operacional para dados clínicos reais.
+**Próximas etapas:** consultas ao banco filtradas por profissional com paginação, ampliação da tipagem estrita, recuperação de acesso por e-mail, notificações de publicação, relatórios exportáveis e preparação operacional para dados clínicos reais.
 
 ## Desenvolvimento local (opcional, para desenvolvedores)
 
@@ -135,7 +139,7 @@ Os documentos abaixo registram decisões e etapas anteriores do projeto. Este RE
 
 ## Segurança e limitações
 
-A API verifica a identidade e associa os registros ao profissional autenticado. Senhas são derivadas por scrypt; o cookie de sessão é HttpOnly e SameSite=Strict. A redefinição de senha do portal é iniciada pelo profissional e compartilhada manualmente; não há envio automático por e-mail. Com PostgreSQL, as sessões são persistentes e revogáveis, com expiração de oito horas e tokens armazenados por hash. A conexão com o Neon usa TLS e é configurada em uma variável protegida na Vercel. Ainda faltam limitação de tentativas, recuperação automática por e-mail, política de retenção, rotina de backup com restauração testada e revisão profissional de segurança e privacidade. O projeto não declara conformidade automática com a LGPD.
+A API verifica a identidade e associa os registros ao profissional autenticado. Senhas são derivadas por scrypt; o cookie de sessão é HttpOnly e SameSite=Strict. A redefinição de senha do portal é iniciada pelo profissional e compartilhada manualmente; não há envio automático por e-mail. Com PostgreSQL, as sessões são persistentes e revogáveis, com expiração de oito horas e tokens armazenados por hash. A conexão com o Neon usa TLS e é configurada em uma variável protegida na Vercel. A API inclui limite de tentativas de autenticação, validação de origem e logs sem conteúdo clínico. A ferramenta de backup criptografado foi testada com restauração em banco isolado. A ativação de backups automáticos, MFA administrativo, credenciais restritas em produção e a definição final de privacidade ainda dependem da configuração operacional. O projeto não declara conformidade automática com a LGPD.
 
 O modo JSON é destinado ao desenvolvimento local. A demonstração pública usa PostgreSQL relacional e controle de revisão nas gravações. A API ainda carrega o conjunto de registros para preservar os endpoints existentes, e os planos gratuitos têm limites de capacidade e disponibilidade.
 

@@ -104,6 +104,7 @@ export function createPostgresStore(connectionString: string) {
 
   return {
     async initialize(readLegacyStore: () => Promise<StoreState>) {
+      if (process.env.DB_AUTO_MIGRATE === 'false') return this.load();
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
@@ -183,6 +184,24 @@ export function createPostgresStore(connectionString: string) {
       } finally {
         client.release();
       }
+    },
+
+    async health() {
+      await pool.query('SELECT 1');
+    },
+
+    async consumeAuthAttempt(bucketHash: string, limit: number, windowSeconds: number) {
+      await pool.query('DELETE FROM auth_rate_limits WHERE expires_at <= now()');
+      const { rows } = await pool.query(
+        `INSERT INTO auth_rate_limits (bucket_hash, attempts, expires_at)
+         VALUES ($1, 1, now() + $2 * interval '1 second')
+         ON CONFLICT (bucket_hash) DO UPDATE SET
+           attempts = CASE WHEN auth_rate_limits.expires_at <= now() THEN 1 ELSE auth_rate_limits.attempts + 1 END,
+           expires_at = CASE WHEN auth_rate_limits.expires_at <= now() THEN EXCLUDED.expires_at ELSE auth_rate_limits.expires_at END
+         RETURNING attempts`,
+        [bucketHash, windowSeconds],
+      );
+      return rows[0].attempts <= limit;
     },
 
     async createSession(

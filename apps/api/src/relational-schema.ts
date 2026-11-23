@@ -213,6 +213,12 @@ export const entities: EntityDefinition[] = [
 ];
 
 export const schemaSql = [
+  `CREATE TABLE IF NOT EXISTS auth_rate_limits (
+    bucket_hash text PRIMARY KEY,
+    attempts integer NOT NULL,
+    expires_at timestamptz NOT NULL
+  )`,
+  'CREATE INDEX IF NOT EXISTS auth_rate_limits_expiry ON auth_rate_limits (expires_at)',
   // Sessions are shared by all serverless instances; only token hashes are stored.
 
   `CREATE TABLE IF NOT EXISTS storage_migrations (

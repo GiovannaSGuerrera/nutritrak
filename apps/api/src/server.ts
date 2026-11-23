@@ -3,6 +3,16 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
 import { createPostgresStore } from './postgres-store';
+import {
+  validateMutation,
+  authRoute,
+  authBucket,
+  consumeLocalAttempt,
+  AUTH_LIMIT,
+  AUTH_WINDOW_SECONDS,
+  securityError,
+  securityLog,
+} from './security';
 function scrypt(password: string, salt: string, length: number): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     crypto.scrypt(password, salt, length, (error, key) => {
@@ -101,7 +111,9 @@ async function body(req) {
     if (Buffer.byteLength(parsed) > 1_000_000)
       throw Object.assign(new Error('Corpo muito grande'), { status: 413 });
     try {
-      return JSON.parse(parsed);
+      const value = JSON.parse(parsed);
+      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+      return value;
     } catch {
       throw Object.assign(new Error('JSON inválido'), { status: 400 });
     }
@@ -113,7 +125,9 @@ async function body(req) {
       throw Object.assign(new Error('Corpo muito grande'), { status: 413 });
   }
   try {
-    return raw ? JSON.parse(raw) : {};
+    const value = raw ? JSON.parse(raw) : {};
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
+    return value;
   } catch {
     throw Object.assign(new Error('JSON inválido'), { status: 400 });
   }
@@ -398,7 +412,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (
       !account ||
       typeof b.password !== 'string' ||
-      !(await scrypt(b.password, account.salt, 64)).equals(Buffer.from(account.hash, 'hex'))
+      b.password.length > 200 ||
+      !crypto.timingSafeEqual(
+        await scrypt(b.password, account.salt, 64),
+        Buffer.from(account.hash, 'hex'),
+      )
     )
       return json(res, 401, { error: 'E-mail ou senha incorretos.' });
     const portal = safePatientPortal(account);
@@ -536,7 +554,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (
       !u ||
       typeof b.password !== 'string' ||
-      !(await scrypt(b.password, u.salt, 64)).equals(Buffer.from(u.hash, 'hex'))
+      b.password.length > 200 ||
+      !crypto.timingSafeEqual(await scrypt(b.password, u.salt, 64), Buffer.from(u.hash, 'hex'))
     )
       return json(res, 401, { error: 'E-mail ou senha incorretos.' });
     const token = crypto.randomBytes(32).toString('hex');
@@ -1003,10 +1022,41 @@ function ensureInitialized() {
 }
 
 export async function requestHandler(req: http.IncomingMessage, res: http.ServerResponse) {
+  const requestId = crypto.randomUUID();
+  const started = Date.now();
+  res.setHeader('x-request-id', requestId);
+  res.setHeader('referrer-policy', 'no-referrer');
+  res.setHeader('x-frame-options', 'DENY');
+  res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  res.on('finish', () => {
+    if (req.url?.startsWith('/api/'))
+      securityLog('http_request', {
+        status: res.statusCode,
+        method: req.method,
+        requestId,
+        durationMs: Date.now() - started,
+      });
+  });
   try {
     if (req.url?.startsWith('/api/')) {
+      validateMutation(req);
       const response = requestQueue.then(async () => {
         await ensureInitialized();
+        const pathname = new URL(req.url!, 'http://localhost').pathname;
+        if (req.method === 'GET' && pathname === '/api/health') {
+          if (postgres) await postgres.health();
+          return json(res, 200, { ok: true });
+        }
+        if (req.method === 'POST' && authRoute(pathname)) {
+          const allowed = postgres
+            ? await postgres.consumeAuthAttempt(authBucket(req), AUTH_LIMIT, AUTH_WINDOW_SECONDS)
+            : consumeLocalAttempt(authBucket(req));
+          if (!allowed) {
+            res.setHeader('retry-after', String(AUTH_WINDOW_SECONDS));
+            securityLog('auth_rate_limited', { status: 429, requestId });
+            throw securityError(429, 'Muitas tentativas. Aguarde 15 minutos e tente novamente.');
+          }
+        }
         if (postgres) store = normalizeStore(await postgres.load());
         await handle(req, res);
       });
@@ -1017,7 +1067,7 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     }
   } catch (error) {
     const status = error.status || 500;
-    console.error('request_error', status, req.method);
+    securityLog('request_error', { status, method: req.method, requestId });
     if (!res.headersSent)
       json(res, status, { error: error.status ? error.message : 'Erro interno. Tente novamente.' });
     else res.end();

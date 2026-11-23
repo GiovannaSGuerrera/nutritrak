@@ -5,8 +5,125 @@ const { spawnSync } = require('node:child_process');
 const path = require('node:path');
 const { Pool } = require('pg');
 const { createPostgresStore } = require('../dist/postgres-store');
+const { snapshot, encryptBackup, decryptBackup, restoreEmpty } = require('../dist/backup');
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
+
+test(
+  'limite compartilhado, execução sem DDL e restauração criptografada em banco vazio',
+  { skip: !databaseUrl },
+  async () => {
+    await isolatedDatabase(async (url, pool) => {
+      const first = createPostgresStore(url);
+      const second = createPostgresStore(url);
+      try {
+        await first.initialize(async () => fixture());
+        const previous = process.env.DB_AUTO_MIGRATE;
+        process.env.DB_AUTO_MIGRATE = 'false';
+        try {
+          assert.equal(
+            (
+              await second.initialize(async () => {
+                throw Error('Não importar');
+              })
+            ).patients.length,
+            1,
+          );
+        } finally {
+          if (previous === undefined) delete process.env.DB_AUTO_MIGRATE;
+          else process.env.DB_AUTO_MIGRATE = previous;
+        }
+        assert.equal(await first.consumeAuthAttempt('hashed-test-bucket', 2, 900), true);
+        assert.equal(await second.consumeAuthAttempt('hashed-test-bucket', 2, 900), true);
+        assert.equal(await first.consumeAuthAttempt('hashed-test-bucket', 2, 900), false);
+        await pool.query("UPDATE auth_rate_limits SET expires_at = now() - interval '1 second'");
+        assert.equal(await second.consumeAuthAttempt('hashed-test-bucket', 2, 900), true);
+        const key = require('node:crypto').randomBytes(32);
+        const backup = decryptBackup(encryptBackup(await snapshot(pool), key), key);
+        await assert.rejects(restoreEmpty(pool, backup), /vazio/);
+        await isolatedDatabase(async (targetUrl, targetPool) => {
+          await restoreEmpty(targetPool, backup);
+          const restored = createPostgresStore(targetUrl);
+          try {
+            const data = await restored.load();
+            assert.equal(data.patients[0].legacyField, 'preservado');
+            assert.equal(data.mealPlans[0].versions.length, 2);
+            assert.equal(
+              (await targetPool.query('SELECT count(*) FROM auth_sessions')).rows[0].count,
+              '0',
+            );
+          } finally {
+            await restored.close();
+          }
+        });
+      } finally {
+        await first.close();
+        await second.close();
+      }
+    });
+  },
+);
+
+test(
+  'papel restrito permite salvar dados e bloqueia DDL e alteração de snapshot',
+  { skip: !databaseUrl },
+  async () => {
+    await isolatedDatabase(async (url, pool) => {
+      const owner = createPostgresStore(url);
+      const suffix = randomUUID().replaceAll('-', '');
+      const role = `runtime_${suffix}`;
+      const backupRole = `backup_${suffix}`;
+      let restricted;
+      try {
+        await owner.initialize(async () => fixture());
+        const schema = (await pool.query('SELECT current_schema() AS name')).rows[0].name;
+        const sql = (
+          await require('node:fs/promises').readFile(
+            path.resolve(__dirname, '../../../docs/security/runtime-grants.sql'),
+            'utf8',
+          )
+        )
+          .replaceAll('nutritrack_runtime', role)
+          .replaceAll('nutritrack_backup', backupRole)
+          .replaceAll('SCHEMA public', `SCHEMA "${schema}"`);
+        await pool.query(sql);
+        const restrictedUrl = new URL(url);
+        restrictedUrl.searchParams.set(
+          'options',
+          `${restrictedUrl.searchParams.get('options')} -c role=${role}`,
+        );
+        const client = new Pool({ connectionString: restrictedUrl.toString() });
+        try {
+          await assert.rejects(client.query('CREATE TABLE forbidden (id int)'), { code: '42501' });
+          await assert.rejects(
+            client.query("UPDATE storage_migrations SET legacy_snapshot = '{}'"),
+            { code: '42501' },
+          );
+        } finally {
+          await client.end();
+        }
+        restricted = createPostgresStore(restrictedUrl.toString());
+        const previous = process.env.DB_AUTO_MIGRATE;
+        process.env.DB_AUTO_MIGRATE = 'false';
+        try {
+          const data = await restricted.initialize(async () => fixture());
+          data.patients[0].name = 'Teste com permissão restrita';
+          await restricted.save(data);
+          assert.equal((await owner.load()).patients[0].name, data.patients[0].name);
+          assert.equal(await restricted.consumeAuthAttempt('restricted-bucket', 2, 900), true);
+        } finally {
+          if (previous === undefined) delete process.env.DB_AUTO_MIGRATE;
+          else process.env.DB_AUTO_MIGRATE = previous;
+        }
+      } finally {
+        if (restricted) await restricted.close();
+        await owner.close();
+        await pool.query(`DROP OWNED BY "${role}", "${backupRole}"`);
+        await pool.query(`DROP ROLE "${role}", "${backupRole}"`);
+      }
+    });
+  },
+);
 
 async function isolatedDatabase(run) {
   const admin = new Pool({ connectionString: databaseUrl });
