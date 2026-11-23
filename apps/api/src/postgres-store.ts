@@ -74,8 +74,18 @@ async function writeChanges(client: PoolClient, state: StoreState, previous: Sto
 async function readState(client: PoolClient): Promise<StoreState> {
   const state: StoreState = {};
   const versions = new Map<string, StoredRecord[]>();
+  // One round trip for the compatibility snapshot, instead of one per entity.
+  // Names come exclusively from the internal schema definitions.
+  const snapshot = await client.query(
+    `SELECT ${entities
+      .map(
+        (entity) =>
+          `(SELECT COALESCE(json_agg(record ORDER BY position, id), '[]'::json) FROM ${entity.table} record) AS "${entity.key}"`,
+      )
+      .join(', ')}`,
+  );
   for (const entity of entities) {
-    const { rows } = await client.query(`SELECT * FROM ${entity.table} ORDER BY position, id`);
+    const rows = snapshot.rows[0][entity.key];
     const records = rows.map((row) => {
       const record = { ...row.extras, id: row.id };
       for (const column of Object.keys(entity.columns))

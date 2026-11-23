@@ -1041,6 +1041,7 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
     if (req.url?.startsWith('/api/')) {
       validateMutation(req);
       const response = requestQueue.then(async () => {
+        const alreadyInitialized = initialization !== undefined;
         await ensureInitialized();
         const pathname = new URL(req.url!, 'http://localhost').pathname;
         if (req.method === 'GET' && pathname === '/api/health') {
@@ -1057,7 +1058,8 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
             throw securityError(429, 'Muitas tentativas. Aguarde 15 minutos e tente novamente.');
           }
         }
-        if (postgres) store = normalizeStore(await postgres.load());
+        // initialize already returns a fresh snapshot on the first request.
+        if (postgres && alreadyInitialized) store = normalizeStore(await postgres.load());
         await handle(req, res);
       });
       requestQueue = response.catch(() => {});

@@ -51,7 +51,9 @@ function heading(title, sub, button = '') {
 }
 let fieldSequence = 0;
 function labelFields(root) {
-  for (const control of root.querySelectorAll('.field > input, .field > select, .field > textarea')) {
+  for (const control of root.querySelectorAll(
+    '.field > input, .field > select, .field > textarea',
+  )) {
     const label = control.parentElement.querySelector('label');
     if (!label) continue;
     control.id ||= 'modal-field-' + ++fieldSequence;
@@ -588,8 +590,8 @@ async function goalsPage() {
   $('#new-goal').onclick = () => goalModal();
   $('#empty-goal')?.addEventListener('click', () => goalModal());
 }
-async function showApp() {
-  state.user = (await api('/api/me')).user;
+async function showApp(user) {
+  state.user = user || (await api('/api/me')).user;
   $('#auth').hidden = true;
   $('#app').hidden = false;
   $('#user-name').textContent = state.user.name;
@@ -601,8 +603,7 @@ async function showApp() {
     day: 'numeric',
     month: 'short',
   });
-  await loadPatients();
-  await navigate('dashboard');
+  await Promise.all([navigate('dashboard'), loadPatients()]);
 }
 $('#auth-form').onsubmit = async (e) => {
   e.preventDefault();
@@ -610,11 +611,19 @@ $('#auth-form').onsubmit = async (e) => {
   const endpoint = state.authMode === 'login' ? '/api/login' : '/api/register',
     payload = { email: $('#auth-email').value, password: $('#auth-password').value };
   if (state.authMode === 'register') payload.name = $('#auth-name').value;
+  const submit = $('#auth-submit');
+  if (submit.disabled) return;
+  const label = submit.textContent;
+  submit.disabled = true;
+  submit.textContent = state.authMode === 'register' ? 'Criando sua conta…' : 'Entrando…';
   try {
-    await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
-    await showApp();
+    const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    await showApp(result.user);
   } catch (err) {
     $('#auth-error').textContent = err.message;
+  } finally {
+    submit.disabled = false;
+    submit.textContent = label;
   }
 };
 $('#auth-toggle').onclick = () => {
