@@ -1,17 +1,39 @@
 # NutriTrack
 
-NutriTrack é uma plataforma web em desenvolvimento para apoiar nutricionistas no acompanhamento de pacientes. Reúne painel profissional e portal do paciente, com backend em Node.js e TypeScript e persistência relacional em PostgreSQL.
+O NutriTrack ajuda nutricionistas a organizar o acompanhamento dos seus pacientes. Em um só lugar, dá para registrar avaliações, cuidar da agenda, acompanhar metas e montar planos alimentares. Cada paciente também tem seu espaço para consultar o plano publicado pelo profissional.
 
-## Acesse o NutriTrack online
+O projeto está em desenvolvimento e já pode ser acessado pelo navegador, no computador ou no celular.
 
-Para usar a versão publicada, basta abrir um dos links abaixo no navegador do computador ou celular. Não é necessário instalar Node.js, pnpm ou PostgreSQL, nem iniciar um servidor local.
+## Conheça o projeto
 
-- [Painel profissional](https://nutritrack-eta-ten.vercel.app/)
-- [Portal do paciente](https://nutritrack-eta-ten.vercel.app/paciente)
+- [Abrir o NutriTrack](https://nutritrack-eta-ten.vercel.app/)
+- [Acessar o portal do paciente](https://nutritrack-eta-ten.vercel.app/paciente)
 
-A aplicação está publicada na Vercel, com PostgreSQL no Neon, na região de São Paulo. A demonstração usa planos gratuitos, sujeitos a cotas e inicialização a frio. Para avaliar o produto, crie uma conta profissional com senha de pelo menos 12 caracteres e cadastre pacientes fictícios. O paciente recebe um convite gerado pelo profissional para ativar o portal.
+Para experimentar, crie uma conta profissional com uma senha de pelo menos 12 caracteres. O acesso do paciente começa com um convite gerado pelo nutricionista dentro do sistema. Você pode usar a versão online sem instalar nada.
 
-Utilize somente dados fictícios durante esta fase de avaliação. Credenciais de banco e dados de pacientes ficam fora do repositório.
+Nesta fase, use apenas dados fictícios. A hospedagem usa planos gratuitos e pode levar alguns instantes para responder após um período sem acesso.
+
+## O que já dá para fazer
+
+- Cadastrar pacientes e consultar seus perfis.
+- Registrar avaliações e calcular IMC e estimativas de composição corporal.
+- Organizar consultas e identificar conflitos de horário.
+- Definir metas e acompanhar o progresso.
+- Criar, revisar e publicar planos alimentares.
+- Compartilhar os planos publicados pelo portal do paciente.
+
+Os dados da versão online ficam no PostgreSQL do Neon. A aplicação está hospedada na Vercel, com backend em Node.js e TypeScript.
+
+## O que vem pela frente
+
+Ainda estamos trabalhando para preparar o projeto para uso com dados reais. Entre os próximos passos estão melhorias de segurança e desempenho, recuperação de acesso por e-mail e relatórios para exportação.
+
+## Para quem quer mexer no código
+
+As instruções para rodar uma cópia local, configurar o banco e executar os testes estão abaixo.
+
+<details>
+<summary>Ver documentação técnica</summary>
 
 ## Backend TypeScript
 
@@ -120,3 +142,5 @@ O modo JSON é destinado ao desenvolvimento local. A demonstração pública usa
 ## Aprendizado
 
 Fluxo atual: o navegador chama endpoints HTTP no mesmo domínio. A API valida a entrada, identifica a sessão pelo cookie, aplica o acesso do profissional ou paciente e devolve JSON. Na publicação, os registros são gravados em tabelas PostgreSQL no Neon. O teste de integração valida cadastro, cálculo, isolamento entre profissionais e conflito na agenda. A documentação de diagnóstico e o ADR explicam a primeira transição e suas consequências.
+
+</details>
