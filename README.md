@@ -2,7 +2,9 @@
 
 NutriTrack é uma plataforma web em desenvolvimento para apoiar nutricionistas no acompanhamento de pacientes. Reúne painel profissional e portal do paciente, com backend em Node.js e TypeScript e persistência relacional em PostgreSQL.
 
-## Demonstração pública
+## Acesse o NutriTrack online
+
+Para usar a versão publicada, basta abrir um dos links abaixo no navegador do computador ou celular. Não é necessário instalar Node.js, pnpm ou PostgreSQL, nem iniciar um servidor local.
 
 - [Painel profissional](https://nutritrack-eta-ten.vercel.app/)
 - [Portal do paciente](https://nutritrack-eta-ten.vercel.app/paciente)
@@ -25,18 +27,22 @@ O projeto usa workspaces pnpm para separar API e interface. A API é escrita em 
 
 **Próximas etapas:** consultas ao banco filtradas por profissional com paginação, ampliação da tipagem estrita, limitação de tentativas, recuperação de acesso por e-mail, notificações de publicação, relatórios exportáveis e preparação operacional para dados clínicos reais.
 
-## Requisitos e execução
+## Desenvolvimento local (opcional, para desenvolvedores)
 
-Requer Node.js 24.x e pnpm 11.25.0, conforme `packageManager`.
+As instruções desta seção servem apenas para executar uma cópia do projeto no seu computador. Para acessar o sistema publicado, use os links da seção **Acesse o NutriTrack online**.
+
+O ambiente de desenvolvimento requer Node.js 24.x e pnpm 11.25.0, conforme `packageManager`.
 
 ```sh
 pnpm install
 pnpm dev
 ```
 
-Abra http://localhost:3000. Crie uma conta profissional de desenvolvimento com senha de pelo menos 12 caracteres. `pnpm start` inicia o servidor; `pnpm test` executa os testes da API; `pnpm format` formata o código com Prettier. Os dados ficam em `data/store.json`, ignorado pelo Git. No modo local com arquivo JSON, as sessões ficam em memória. Com PostgreSQL, as sessões persistem no banco e podem ser utilizadas por diferentes instâncias da API. `.env.example` registra as variáveis lidas pelo servidor; Node.js nativo não carrega esse arquivo automaticamente.
+Após iniciar o servidor local, abra http://localhost:3000. Esse endereço funciona somente no computador que executa o projeto e não é necessário para usar a versão online. Crie uma conta profissional de desenvolvimento com senha de pelo menos 12 caracteres. `pnpm start` inicia o servidor; `pnpm test` executa os testes da API; `pnpm format` formata o código com Prettier. Sem `DATABASE_URL`, os dados locais ficam em `data/store.json`, ignorado pelo Git, e as sessões ficam em memória. Com PostgreSQL, os dados e as sessões persistem no banco, e as sessões podem ser utilizadas por diferentes instâncias da API. `.env.example` registra as variáveis lidas pelo servidor; Node.js nativo não carrega esse arquivo automaticamente.
 
 ## PostgreSQL
+
+A versão online já utiliza PostgreSQL no Neon. Os passos abaixo são destinados a desenvolvedores que desejam configurar outro ambiente ou migrar dados.
 
 Crie um banco dedicado para o NutriTrack e configure `DATABASE_URL` no ambiente da API. A conta do banco precisa poder criar as tabelas, índices e relacionamentos da migração, além de ler e gravar seus registros. Depois execute `pnpm start`.
 
