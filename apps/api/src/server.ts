@@ -46,8 +46,7 @@ let requestQueue = Promise.resolve();
 function normalizeStore(data) {
   if (!data || typeof data !== 'object' || Array.isArray(data))
     throw new Error('O armazenamento deve conter um objeto JSON.');
-  for (const key of Object.keys(emptyStore))
-    if (!Array.isArray(data[key])) data[key] = [];
+  for (const key of Object.keys(emptyStore)) if (!Array.isArray(data[key])) data[key] = [];
   return data;
 }
 
@@ -74,11 +73,13 @@ async function loadStore() {
 
 function persist() {
   if (postgres) return postgres.save(store);
-  writeQueue = writeQueue.catch(() => {}).then(async () => {
-    const temp = `${STORE}.${crypto.randomUUID()}.tmp`;
-    await fs.writeFile(temp, JSON.stringify(store, null, 2), { mode: 0o600 });
-    await fs.rename(temp, STORE);
-  });
+  writeQueue = writeQueue
+    .catch(() => {})
+    .then(async () => {
+      const temp = `${STORE}.${crypto.randomUUID()}.tmp`;
+      await fs.writeFile(temp, JSON.stringify(store, null, 2), { mode: 0o600 });
+      await fs.rename(temp, STORE);
+    });
   return writeQueue;
 }
 
@@ -91,6 +92,20 @@ function json(res: http.ServerResponse, status: number, body: unknown) {
   res.end(JSON.stringify(body));
 }
 async function body(req) {
+  // Vercel may parse JSON before invoking the Node handler.
+  if (req.body !== undefined) {
+    const parsed =
+      typeof req.body === 'string' || Buffer.isBuffer(req.body)
+        ? String(req.body)
+        : JSON.stringify(req.body);
+    if (Buffer.byteLength(parsed) > 1_000_000)
+      throw Object.assign(new Error('Corpo muito grande'), { status: 413 });
+    try {
+      return JSON.parse(parsed);
+    } catch {
+      throw Object.assign(new Error('JSON inválido'), { status: 400 });
+    }
+  }
   let raw = '';
   for await (const chunk of req) {
     raw += chunk;
@@ -110,14 +125,20 @@ function cookie(req, name) {
     .find((x) => x.startsWith(name + '='))
     ?.slice(name.length + 1);
 }
-function userFor(req) {
+async function userFor(req) {
   const token = cookie(req, 'nc_session');
-  const id = token && sessions.get(token);
+  const id =
+    token &&
+    (postgres ? await postgres.getSession(tokenHash(token), 'professional') : sessions.get(token));
   return store.users.find((u) => u.id === id) || null;
 }
-function patientAccountFor(req) {
+async function patientAccountFor(req) {
   const token = cookie(req, 'nt_patient_session');
-  const id = token && patientSessions.get(token);
+  const id =
+    token &&
+    (postgres
+      ? await postgres.getSession(tokenHash(token), 'patient')
+      : patientSessions.get(token));
   return store.patientAccounts.find((a) => a.id === id) || null;
 }
 function setSessionCookie(res, name, token, maxAge) {
@@ -262,7 +283,7 @@ function canPublish(version) {
 async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method === 'GET' && url.pathname === '/api/me') {
-    const u = userFor(req);
+    const u = await userFor(req);
     return u
       ? json(res, 200, { user: safeUser(u) })
       : json(res, 401, { error: 'Autenticação necessária' });
@@ -362,7 +383,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     audit(patient.userId, 'patient_portal_activated', 'patient', patient.id);
     await persist();
     const session = crypto.randomBytes(32).toString('hex');
-    patientSessions.set(session, account.id);
+    if (postgres)
+      await postgres.createSession(tokenHash(session), 'patient', account.id, account.hash);
+    else patientSessions.set(session, account.id);
     setSessionCookie(res, 'nt_patient_session', session, 28800);
     return json(res, 201, { portal: safePatientPortal(account) });
   }
@@ -384,7 +407,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         error: 'Acesso ao portal indisponível. Entre em contato com o profissional.',
       });
     const session = crypto.randomBytes(32).toString('hex');
-    patientSessions.set(session, account.id);
+    if (postgres)
+      await postgres.createSession(tokenHash(session), 'patient', account.id, account.hash);
+    else patientSessions.set(session, account.id);
     setSessionCookie(res, 'nt_patient_session', session, 28800);
     return json(res, 200, { portal });
   }
@@ -437,17 +462,21 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       if (patientSessions.get(session) === account.id) patientSessions.delete(session);
     audit(account.professionalId, 'patient_portal_password_reset', 'patient', account.patientId);
     await persist();
+    if (postgres) await postgres.revokePatientSessions(account.id);
     setSessionCookie(res, 'nt_patient_session', '', 0);
     return json(res, 200, { ok: true });
   }
   if (req.method === 'POST' && url.pathname === '/api/patient/logout') {
     const session = cookie(req, 'nt_patient_session');
-    if (session) patientSessions.delete(session);
+    if (session) {
+      if (postgres) await postgres.deleteSession(tokenHash(session));
+      else patientSessions.delete(session);
+    }
     setSessionCookie(res, 'nt_patient_session', '', 0);
     return json(res, 200, { ok: true });
   }
   if (req.method === 'GET' && url.pathname === '/api/patient/me') {
-    const account = patientAccountFor(req);
+    const account = await patientAccountFor(req);
     if (!account) return json(res, 401, { error: 'Entre no portal do paciente.' });
     const portal = safePatientPortal(account);
     return portal
@@ -490,7 +519,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     audit(u.id, 'account_created', 'user', u.id);
     await persist();
     const token = crypto.randomBytes(32).toString('hex');
-    sessions.set(token, u.id);
+    if (postgres) await postgres.createSession(tokenHash(token), 'professional', u.id, u.hash);
+    else sessions.set(token, u.id);
     res.setHeader(
       'set-cookie',
       `nc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
@@ -510,7 +540,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     )
       return json(res, 401, { error: 'E-mail ou senha incorretos.' });
     const token = crypto.randomBytes(32).toString('hex');
-    sessions.set(token, u.id);
+    if (postgres) await postgres.createSession(tokenHash(token), 'professional', u.id, u.hash);
+    else sessions.set(token, u.id);
     res.setHeader(
       'set-cookie',
       `nc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
@@ -519,12 +550,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
   if (req.method === 'POST' && url.pathname === '/api/logout') {
     const token = cookie(req, 'nc_session');
-    if (token) sessions.delete(token);
+    if (token) {
+      if (postgres) await postgres.deleteSession(tokenHash(token));
+      else sessions.delete(token);
+    }
     res.setHeader('set-cookie', 'nc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
     return json(res, 200, { ok: true });
   }
   if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res);
-  const u = userFor(req);
+  const u = await userFor(req);
   if (!u) return json(res, 401, { error: 'Autenticação necessária' });
   const uid = u.id;
   if (req.method === 'GET' && url.pathname === '/api/dashboard') {
@@ -958,31 +992,46 @@ async function serveStatic(pathname: string, res: http.ServerResponse) {
     res.end('Not found');
   }
 }
-const server = http.createServer((req, res) => {
-  let response;
-  if (postgres && req.url?.startsWith('/api/')) {
-    response = requestQueue.then(async () => {
-      store = normalizeStore(await postgres.load());
-      await handle(req, res);
-    });
-    requestQueue = response.catch(() => {});
-  } else {
-    response = handle(req, res);
-  }
-  response.catch((err) => {
-    console.error('request_error', err.status || 500, req.method, req.url);
-    if (!res.headersSent)
-      json(res, err.status || 500, {
-        error: err.status ? err.message : 'Erro interno. Tente novamente.',
+let initialization: Promise<void> | undefined;
+
+function ensureInitialized() {
+  initialization ??= loadStore().catch((error) => {
+    initialization = undefined;
+    throw error;
+  });
+  return initialization;
+}
+
+export async function requestHandler(req: http.IncomingMessage, res: http.ServerResponse) {
+  try {
+    if (req.url?.startsWith('/api/')) {
+      const response = requestQueue.then(async () => {
+        await ensureInitialized();
+        if (postgres) store = normalizeStore(await postgres.load());
+        await handle(req, res);
       });
+      requestQueue = response.catch(() => {});
+      await response;
+    } else {
+      await handle(req, res);
+    }
+  } catch (error) {
+    const status = error.status || 500;
+    console.error('request_error', status, req.method);
+    if (!res.headersSent)
+      json(res, status, { error: error.status ? error.message : 'Erro interno. Tente novamente.' });
     else res.end();
-  });
-});
-loadStore()
-  .then(() =>
-    server.listen(PORT, () => console.log(`NutriTrack disponível em http://localhost:${PORT}`)),
-  )
-  .catch((e) => {
-    console.error('startup_error', e.message);
-    process.exit(1);
-  });
+  }
+}
+
+if (require.main === module) {
+  ensureInitialized()
+    .then(() => {
+      const server = http.createServer(requestHandler);
+      server.listen(PORT, () => console.log(`NutriTrack disponível em http://localhost:${PORT}`));
+    })
+    .catch(() => {
+      console.error('startup_error');
+      process.exit(1);
+    });
+}

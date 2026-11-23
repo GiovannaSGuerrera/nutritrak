@@ -33,7 +33,27 @@ Crie um banco dedicado para o NutriTrack e configure `DATABASE_URL` no ambiente 
 
 Na primeira execução com o banco vazio, a API importa `data/store.json` se ele existir. Use `DATA_DIR` para indicar outra pasta que contenha esse arquivo. Pare o servidor que grava no JSON antes de iniciar a migração. O arquivo original fica disponível como cópia e não é reimportado nas próximas inicializações.
 
-O PostgreSQL guarda o estado existente em JSONB. Sessões continuam em memória e exigem novo login depois de reiniciar. Sem `DATABASE_URL`, o ambiente de desenvolvimento continua usando o arquivo local. Em produção, configure `DATABASE_URL`.
+O PostgreSQL organiza profissionais, pacientes, avaliações, consultas, metas, planos, versões, contas do portal, convites, redefinições de senha e auditoria em tabelas próprias. Refeições, itens e anotações de progresso permanecem como documentos JSONB dentro do registro correspondente. Com PostgreSQL, as sessões são compartilhadas entre instâncias, expiram após oito horas e guardam somente o hash do token. Logout e troca de senha revogam o acesso. Sem `DATABASE_URL`, o ambiente de desenvolvimento continua usando o arquivo local. Em produção, configure `DATABASE_URL`.
+
+### Migração do banco existente
+
+Pare as instâncias antigas da API antes de iniciar esta versão. Na inicialização, a API cria as tabelas e importa o documento da tabela `nutritrack_store`. Em um banco novo, importa o arquivo `store.json` da pasta indicada por `DATA_DIR`. A migração é transacional e executada uma vez. O documento original é mantido e uma cópia também fica em `storage_migrations.legacy_snapshot`. Depois da migração, as tabelas relacionais são a fonte dos dados.
+
+As chaves estrangeiras validam a associação entre paciente e profissional. Planos publicados referenciam versões do mesmo plano. A API grava somente os registros alterados e verifica a revisão antes de confirmar a transação. Uma gravação com revisão desatualizada recebe HTTP 409 e pode ser repetida após recarregar os dados.
+
+A camada de compatibilidade ainda carrega o conjunto de registros para atender os endpoints existentes. Consultas por profissional com paginação são uma etapa posterior.
+
+Para testar o banco, configure `TEST_DATABASE_URL` apontando para um PostgreSQL de testes e execute `pnpm --filter @nutritrack/api test:postgres`. A suíte cria schemas isolados com nomes aleatórios e os remove ao terminar. Ela verifica importação, reinicialização, versões, isolamento relacional, conflitos e rollback, além dos fluxos originais da API.
+
+## Publicação na Vercel com Neon
+
+A Vercel serve os arquivos de `apps/web/public` e encaminha `/api/*` para `api/index.js`. A entrada reutiliza a mesma API compilada, com inicialização sob demanda e controle das requisições concorrentes dentro de cada instância. As sessões ficam no PostgreSQL.
+
+Crie um projeto PostgreSQL no Neon e configure `DATABASE_URL` na Vercel usando a conexão com TLS fornecida pelo Neon. Para várias instâncias, use o endereço pooled do Neon. Guarde a URL somente no ambiente da hospedagem.
+
+Importe o repositório na Vercel, selecione a raiz do monorepo e mantenha as configurações de `vercel.json`. O build instala as dependências de desenvolvimento para compilar TypeScript. O runtime precisa de Node.js 24. A primeira requisição à API aplica a migração do banco.
+
+Os planos gratuitos têm cotas e podem apresentar inicialização a frio. O ambiente de avaliação deve usar dados fictícios.
 
 ## Estrutura atual
 

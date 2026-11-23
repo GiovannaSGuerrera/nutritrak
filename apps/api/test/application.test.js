@@ -21,7 +21,14 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   await fs.rm(dir, { recursive: true, force: true });
   await fs.mkdir(dir, { recursive: true });
   const port = await freePort();
-  const child = spawn(process.execPath, [path.join(__dirname, '..', 'dist', 'server.js')], {
+  const serverArguments =
+    process.env.TEST_SERVERLESS === '1'
+      ? [
+          '-e',
+          `require('node:http').createServer(require(${JSON.stringify(path.resolve(__dirname, '../../../api/index.js'))})).listen(Number(process.env.PORT))`,
+        ]
+      : [path.join(__dirname, '..', 'dist', 'server.js')];
+  const child = spawn(process.execPath, serverArguments, {
     env: { ...process.env, PORT: String(port), DATA_DIR: dir, NODE_ENV: 'test' },
     stdio: ['ignore', 'ignore', 'pipe'],
   });

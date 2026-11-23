@@ -9,7 +9,8 @@
     "start": "pnpm build && node dist/server.js",
     "dev": "pnpm build && node --watch dist/server.js",
     "test": "pnpm build && node --test",
-    "dev:build": "tsc -p tsconfig.json --watch"
+    "dev:build": "tsc -p tsconfig.json --watch",
+    "test:postgres": "pnpm build && node --test test/postgres.test.js"
   },
   "engines": {
     "node": ">=20"
