@@ -3,36 +3,40 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <meta name="theme-color" content="#f8f5e9" />
+    <meta name="theme-color" content="#f5f7f2" />
     <title>NutriTrack — acompanhamento nutricional</title>
-    <link rel="stylesheet" href="/styles.css?v=20261028-7" />
-    <script src="/app.js?v=20261028-7" defer></script>
-    <script src="/portal.js?v=20261028-3" defer></script>
+    <link rel="stylesheet" href="/styles.css?v=20261112-1" />
+    <script src="/app.js?v=20261112-1" defer></script>
+    <script src="/portal.js?v=20261112-1" defer></script>
   </head>
   <body>
     <div id="auth" class="auth-shell">
+      <div class="auth-intro">
       <div class="auth-brand">
         <span class="brand-mark" aria-hidden="true">♧</span><span>NutriTrack</span>
       </div>
+      <p class="auth-intro-title">Acompanhamento<br />nutricional</p>
+        <p>Pacientes, avaliações e planos alimentares em um só lugar.</p>
+      </div>
       <section class="auth-card">
         <p class="eyebrow">SEU ESPAÇO PROFISSIONAL</p>
-        <h1 id="auth-title">Bem-vinda ao NutriTrack</h1>
-        <p class="muted" id="auth-subtitle">Entre para organizar seus acompanhamentos.</p>
+        <h1 id="auth-title">Entre na sua conta</h1>
+        <p class="muted" id="auth-subtitle">Acesse seu espaço profissional.</p>
         <p class="runtime-notice" id="runtime-notice" hidden>
           Para usar o NutriTrack, inicie o servidor na pasta do projeto com <code>pnpm dev</code> e
           abra <code>http://localhost:3000</code>.
         </p>
         <form id="auth-form">
-          <label
+          <label id="auth-name-field" hidden
             >Seu nome<input
-              id="auth-name"
+              id="auth-name" name="name"
               autocomplete="name"
               placeholder="Nome profissional"
               hidden
           /></label>
           <label
             >E-mail<input
-              id="auth-email"
+              id="auth-email" name="email" spellcheck="false"
               type="email"
               required
               autocomplete="email"
@@ -40,7 +44,7 @@
           /></label>
           <label
             >Senha<input
-              id="auth-password"
+              id="auth-password" name="password"
               type="password"
               required
               minlength="12"
@@ -54,7 +58,7 @@
           <button class="link-button" id="auth-toggle">Criar conta</button>
         </p>
         <p class="auth-toggle"><a href="/paciente">Acessar portal do paciente</a></p>
-        <p class="form-error" id="auth-error"></p>
+        <p class="form-error" id="auth-error" role="alert"></p>
         <p class="auth-note">
           Dados persistidos localmente para desenvolvimento. Use dados fictícios neste ambiente.
         </p>
@@ -72,21 +76,21 @@
         <p class="nav-caption">CONSULTÓRIO</p>
         <nav aria-label="Navegação principal">
           <button class="nav-item active" data-page="dashboard">
-            <span class="nav-icon">⌁</span> Visão geral
+            <span class="nav-icon" aria-hidden="true">⌁</span> Visão geral
           </button>
           <button class="nav-item" data-page="patients">
-            <span class="nav-icon">♧</span> Pacientes <b id="patient-badge">0</b>
+            <span class="nav-icon" aria-hidden="true">♧</span> Pacientes <b id="patient-badge">0</b>
           </button>
           <button class="nav-item" data-page="assessments">
-            <span class="nav-icon">♡</span> Avaliações
+            <span class="nav-icon" aria-hidden="true">♡</span> Avaliações
           </button>
           <button class="nav-item" data-page="meal-plans">
-            <span class="nav-icon">▤</span> Planos alimentares
+            <span class="nav-icon" aria-hidden="true">▤</span> Planos alimentares
           </button>
           <button class="nav-item" data-page="agenda">
-            <span class="nav-icon">▦</span> Agenda
+            <span class="nav-icon" aria-hidden="true">▦</span> Agenda
           </button>
-          <button class="nav-item" data-page="goals"><span class="nav-icon">◎</span> Metas</button>
+          <button class="nav-item" data-page="goals"><span class="nav-icon" aria-hidden="true">◎</span> Metas</button>
         </nav>
         <div class="privacy-card">
           <strong><i></i> Dados privados</strong
@@ -111,12 +115,13 @@
         </div>
       </aside>
       <main class="main">
+        <a class="skip-link" href="#content">Pular para o conteúdo</a>
         <header class="topbar">
           <button
             class="mobile-menu"
             id="mobile-menu"
             aria-label="Abrir menu"
-            aria-expanded="false"
+            aria-expanded="false" aria-controls="sidebar"
           >
             ☰
           </button>
@@ -134,10 +139,10 @@
             </button>
           </div>
         </header>
-        <div class="content" id="content"></div>
+        <div class="content" id="content" tabindex="-1"></div>
       </main>
     </div>
-    <dialog id="modal" class="modal">
+    <dialog id="modal" class="modal" aria-labelledby="modal-title">
       <form method="dialog" class="modal-close">
         <button class="icon-button" aria-label="Fechar">×</button>
       </form>

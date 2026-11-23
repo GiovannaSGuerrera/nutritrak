@@ -1,25 +1,33 @@
-const http = require('node:http');
-const fs = require('node:fs/promises');
-const path = require('node:path');
-const crypto = require('node:crypto');
-const { promisify } = require('node:util');
-const scrypt = promisify(crypto.scrypt);
+import * as http from 'node:http';
+import * as fs from 'node:fs/promises';
+import * as path from 'node:path';
+import * as crypto from 'node:crypto';
+import { createPostgresStore } from './postgres-store';
+function scrypt(password: string, salt: string, length: number): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    crypto.scrypt(password, salt, length, (error, key) => {
+      if (error) reject(error);
+      else resolve(key);
+    });
+  });
+}
 
 const ROOT = path.resolve(__dirname, '../../..');
 const PUBLIC_DIR = path.resolve(__dirname, '../../web/public');
 const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
 const STORE = path.join(DATA_DIR, 'store.json');
 const PORT = Number(process.env.PORT || 3000);
-const sessions = new Map();
-const patientSessions = new Map();
-const MIME = {
+const postgres = process.env.DATABASE_URL ? createPostgresStore(process.env.DATABASE_URL) : null;
+const sessions = new Map<string, string>();
+const patientSessions = new Map<string, string>();
+const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
   '.css': 'text/css; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
   '.svg': 'image/svg+xml',
 };
-let store = {
+const emptyStore = {
   users: [],
   patients: [],
   assessments: [],
@@ -31,39 +39,50 @@ let store = {
   patientAccounts: [],
   audit: [],
 };
+let store = structuredClone(emptyStore);
 let writeQueue = Promise.resolve();
+let requestQueue = Promise.resolve();
+
+function normalizeStore(data) {
+  if (!data || typeof data !== 'object' || Array.isArray(data))
+    throw new Error('O armazenamento deve conter um objeto JSON.');
+  for (const key of Object.keys(emptyStore))
+    if (!Array.isArray(data[key])) data[key] = [];
+  return data;
+}
+
+async function readLegacyStore() {
+  try {
+    return normalizeStore(JSON.parse(await fs.readFile(STORE, 'utf8')));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+    return structuredClone(emptyStore);
+  }
+}
 
 async function loadStore() {
-  await fs.mkdir(DATA_DIR, { recursive: true });
-  try {
-    store = JSON.parse(await fs.readFile(STORE, 'utf8'));
-  } catch (e) {
-    if (e.code !== 'ENOENT') throw e;
-    await persist();
+  if (postgres) {
+    store = normalizeStore(await postgres.initialize(readLegacyStore));
+    return;
   }
-  for (const key of [
-    'users',
-    'patients',
-    'assessments',
-    'appointments',
-    'goals',
-    'mealPlans',
-    'patientInvitations',
-    'patientPasswordResets',
-    'patientAccounts',
-    'audit',
-  ])
-    if (!Array.isArray(store[key])) store[key] = [];
+  if (process.env.NODE_ENV === 'production')
+    throw new Error('Configure DATABASE_URL para executar em produção.');
+  await fs.mkdir(DATA_DIR, { recursive: true });
+  store = await readLegacyStore();
+  await persist();
 }
+
 function persist() {
-  writeQueue = writeQueue.then(async () => {
+  if (postgres) return postgres.save(store);
+  writeQueue = writeQueue.catch(() => {}).then(async () => {
     const temp = `${STORE}.${crypto.randomUUID()}.tmp`;
     await fs.writeFile(temp, JSON.stringify(store, null, 2), { mode: 0o600 });
     await fs.rename(temp, STORE);
   });
   return writeQueue;
 }
-function json(res, status, body) {
+
+function json(res: http.ServerResponse, status: number, body: unknown) {
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
@@ -240,7 +259,7 @@ function canPublish(version) {
     )
   );
 }
-async function handle(req, res) {
+async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url, 'http://localhost');
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const u = userFor(req);
@@ -918,7 +937,7 @@ async function handle(req, res) {
   }
   return json(res, 404, { error: 'Rota não encontrada.' });
 }
-async function serveStatic(pathname, res) {
+async function serveStatic(pathname: string, res: http.ServerResponse) {
   let file = ['/', '/paciente', '/paciente/ativar', '/paciente/redefinir'].includes(pathname)
     ? 'index.html'
     : decodeURIComponent(pathname).replace(/^\/+/, '');
@@ -940,7 +959,17 @@ async function serveStatic(pathname, res) {
   }
 }
 const server = http.createServer((req, res) => {
-  handle(req, res).catch((err) => {
+  let response;
+  if (postgres && req.url?.startsWith('/api/')) {
+    response = requestQueue.then(async () => {
+      store = normalizeStore(await postgres.load());
+      await handle(req, res);
+    });
+    requestQueue = response.catch(() => {});
+  } else {
+    response = handle(req, res);
+  }
+  response.catch((err) => {
     console.error('request_error', err.status || 500, req.method, req.url);
     if (!res.headersSent)
       json(res, err.status || 500, {

@@ -2,13 +2,19 @@
 
 NutriTrack é uma plataforma em desenvolvimento para apoiar nutricionistas no acompanhamento de pacientes. O objetivo é evoluir, em etapas compreensíveis e testáveis, de uma base funcional para um produto com aplicações web e móveis e uma API central.
 
+## Backend TypeScript
+
+A API usa Node.js e TypeScript. Execute `pnpm build` para gerar `apps/api/dist`, `pnpm typecheck` para verificar os tipos e `pnpm start` para compilar e iniciar. Os testes compilam a API antes de executá-la. Para desenvolvimento, execute `pnpm --filter @nutritrack/api dev:build` em um terminal e `pnpm dev` em outro.
+
+A migração de tipos é incremental. Os limites HTTP, sessões e o cliente PostgreSQL já recebem tipos, e a configuração ainda permite parâmetros com tipos implícitos.
+
 ## Estado atual
 
-O primeiro passo estrutural separou servidor/API e interface web em workspaces pnpm, preservando a implementação existente. O código de runtime continua em JavaScript e usa apenas APIs nativas do Node.js. Prettier é uma dependência de desenvolvimento usada para manter a formatação consistente.
+O primeiro passo estrutural separou servidor/API e interface web em workspaces pnpm, preservando a implementação existente. O código de runtime continua em JavaScript e usa Node.js e aceita PostgreSQL como armazenamento. Prettier é uma dependência de desenvolvimento usada para manter a formatação consistente.
 
 **Implementado:** cadastro/login profissional, pacientes e perfis, avaliações antropométricas parciais, cálculos de IMC e composição estimada, agenda com detecção de conflitos, metas, dashboard com dados persistidos, rascunhos e versionamento de planos alimentares, publicação profissional com validações e portal separado do paciente. O portal usa convite de uso único e mostra somente versões publicadas. O profissional também pode gerar um link manual de redefinição de senha para a paciente; esse link expira em 24 horas e só pode ser usado uma vez.
 
-**Ainda não implementado:** PostgreSQL/Prisma, API NestJS, frontend Next.js, apps Expo, consultas clínicas completas, recuperação automática por e-mail, limitação de tentativas, notificações de novas publicações, relatórios exportáveis e preparação para produção. Não use dados reais de saúde nesta versão.
+**Ainda não implementado:** Prisma, API NestJS, frontend Next.js, apps Expo, consultas clínicas completas, recuperação automática por e-mail, limitação de tentativas, notificações de novas publicações, relatórios exportáveis e preparação para produção. Não use dados reais de saúde nesta versão.
 
 ## Requisitos e execução
 
@@ -21,12 +27,20 @@ pnpm dev
 
 Abra http://localhost:3000. Crie uma conta profissional de desenvolvimento com senha de pelo menos 12 caracteres. `pnpm start` inicia o servidor; `pnpm test` executa os testes da API; `pnpm format` formata o código com Prettier. Os dados ficam em `data/store.json`, ignorado pelo Git. Sessões são mantidas em memória e terminam ao reiniciar. `.env.example` registra as variáveis lidas pelo servidor; Node.js nativo não carrega esse arquivo automaticamente.
 
+## PostgreSQL
+
+Crie um banco dedicado para o NutriTrack e configure `DATABASE_URL` no ambiente da API. A conta do banco precisa poder criar a tabela inicial e ler e gravar seus registros. Depois execute `pnpm start`.
+
+Na primeira execução com o banco vazio, a API importa `data/store.json` se ele existir. Use `DATA_DIR` para indicar outra pasta que contenha esse arquivo. Pare o servidor que grava no JSON antes de iniciar a migração. O arquivo original fica disponível como cópia e não é reimportado nas próximas inicializações.
+
+O PostgreSQL guarda o estado existente em JSONB. Sessões continuam em memória e exigem novo login depois de reiniciar. Sem `DATABASE_URL`, o ambiente de desenvolvimento continua usando o arquivo local. Em produção, configure `DATABASE_URL`.
+
 ## Estrutura atual
 
 ```text
 apps/
   api/                 servidor HTTP, endpoints e teste
-    src/server.js
+    src/server.ts
     test/application.test.js
   web/public/           HTML, CSS e JavaScript da interface
     portal.js           experiência separada do paciente

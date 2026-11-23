@@ -49,6 +49,20 @@ function toast(msg, error = false) {
 function heading(title, sub, button = '') {
   return `<div class="page-heading"><div><h1>${title}</h1><p>${sub}</p></div>${button}</div>`;
 }
+let fieldSequence = 0;
+function labelFields(root) {
+  for (const control of root.querySelectorAll('.field > input, .field > select, .field > textarea')) {
+    const label = control.parentElement.querySelector('label');
+    if (!label) continue;
+    control.id ||= 'modal-field-' + ++fieldSequence;
+    label.htmlFor = control.id;
+  }
+}
+function showLabeledModal(dialog) {
+  dialog.querySelector('h2').id = 'modal-title';
+  labelFields(dialog);
+  dialog.showModal();
+}
 function openModal(title, intro, fields, submitText, handler) {
   const d = $('#modal'),
     root = $('#modal-content');
@@ -64,7 +78,7 @@ function openModal(title, intro, fields, submitText, handler) {
       toast(err.message, true);
     }
   };
-  d.showModal();
+  showLabeledModal(d);
 }
 const field = (name, label, type = 'text', opts = {}) =>
   `<div class="field ${opts.wide ? 'wide' : ''}"><label>${label}</label>${type === 'textarea' ? `<textarea name="${name}" ${opts.required ? 'required' : ''} placeholder="${opts.placeholder || ''}"></textarea>` : type === 'select' ? `<select name="${name}" ${opts.required ? 'required' : ''}>${opts.options.map((x) => (typeof x === 'string' ? `<option>${x}</option>` : `<option value="${esc(x.value)}">${esc(x.label)}</option>`)).join('')}</select>` : `<input name="${name}" type="${type}" ${opts.required ? 'required' : ''} ${opts.min !== undefined ? `min="${opts.min}"` : ''} ${opts.step ? `step="${opts.step}"` : ''} ${opts.placeholder ? `placeholder="${opts.placeholder}"` : ''}>`}</div>`;
@@ -75,7 +89,13 @@ async function loadPatients() {
 async function navigate(page) {
   state.page = page;
   state.patient = null;
-  $$('.nav-item').forEach((x) => x.classList.toggle('active', x.dataset.page === page));
+  const menuWasOpen = $('.sidebar').classList.contains('open');
+  $$('.nav-item').forEach((item) => {
+    const active = item.dataset.page === page;
+    item.classList.toggle('active', active);
+    if (active) item.setAttribute('aria-current', 'page');
+    else item.removeAttribute('aria-current');
+  });
   const label =
     {
       dashboard: 'Visão geral',
@@ -89,6 +109,7 @@ async function navigate(page) {
   $('#content').innerHTML = '<div class="empty-inline">Carregando…</div>';
   $('.sidebar').classList.remove('open');
   $('#mobile-menu').setAttribute('aria-expanded', 'false');
+  if (menuWasOpen) $('#content').focus();
   try {
     if (page === 'dashboard') await dashboard();
     else if (page === 'patients') {
@@ -124,7 +145,7 @@ async function dashboard() {
       ? 'O gráfico aparecerá com os primeiros cadastros'
       : 'Sem novos cadastros nos últimos seis meses';
   $('#content').innerHTML =
-    `<div class="dashboard-heading"><div><p class="eyebrow">NUTRITRACK PRO</p><h1>Visão geral</h1><p>Uma visão clara para cuidar melhor de cada jornada.</p></div><button class="button outline-button" data-go="patients">Ver pacientes <span>›</span></button></div><section class="stats">${cards.map((c) => `<article class="stat-card"><div class="stat-top">${c[0]}<span class="stat-icon ${c[4]}">${c[3]}</span></div><div class="stat-value">${c[1]}</div><div class="stat-hint">${c[2]}</div></article>`).join('')}</section><section class="panel chart-panel"><div class="panel-head"><div><h2>Novos pacientes</h2><p>Cadastros por mês, calculados do seu histórico</p></div><span class="period-pill">Últimos 6 meses</span></div>${d.newPatientsByMonth.some((m) => m.total > 0) ? newPatientsChart(d.newPatientsByMonth) : `<div class="chart-empty"><div class="chart-empty-icon">♧</div><strong>${chartEmpty}</strong><p>Os totais mensais são calculados a partir do histórico<br class="desktop-break"> de cadastros do seu consultório.</p></div>`}</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Consultas agendadas em breve</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((a) => `<div class="appointment-row"><div class="time-block">${timeFmt(a.start)}</div><div><div class="row-primary">${esc(a.patientName)}</div><div class="row-secondary">${dateFmt(a.start)} · ${esc(a.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>`}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Movimentações do consultório</p></div></div>${d.recent.length ? d.recent.map((a) => `<div class="activity-row"><div class="avatar">${a.type === 'patient' ? '♧' : '•'}</div><div><div class="row-primary">${{ patient_created: 'Paciente cadastrado', patient_updated: 'Cadastro atualizado', patient_portal_activated: 'Portal do paciente ativado', assessment_created: 'Avaliação registrada', appointment_created: 'Consulta agendada', goal_created: 'Meta criada' }[a.action] || 'Atividade registrada'}</div><div class="row-secondary">${dateFmt(a.at)}</div></div></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma atividade ainda</strong>Suas movimentações aparecerão aqui.</div>`}</section></div><div class="action-grid"><button class="quick-action" id="quick-patient"><span>＋</span><strong>Cadastrar paciente</strong><small>Inicie um acompanhamento</small></button><button class="quick-action" id="quick-appointment"><span>▦</span><strong>Agendar consulta</strong><small>Organize seus próximos horários</small></button><button class="quick-action" id="quick-assessment"><span>↗</span><strong>Registrar avaliação</strong><small>Atualize medidas corporais</small></button></div>`;
+    `<div class="dashboard-heading"><div><h1>Visão geral</h1><p>Acompanhe seus pacientes, avaliações e próximas consultas.</p></div><button class="button outline-button" data-go="patients">Ver pacientes <span>›</span></button></div><section class="stats">${cards.map((c) => `<article class="stat-card"><div class="stat-top">${c[0]}<span class="stat-icon ${c[4]}">${c[3]}</span></div><div class="stat-value">${c[1]}</div><div class="stat-hint">${c[2]}</div></article>`).join('')}</section><section class="panel chart-panel"><div class="panel-head"><div><h2>Novos pacientes</h2><p>Cadastros por mês, calculados do seu histórico</p></div><span class="period-pill">Últimos 6 meses</span></div>${d.newPatientsByMonth.some((m) => m.total > 0) ? newPatientsChart(d.newPatientsByMonth) : `<div class="chart-empty"><div class="chart-empty-icon">♧</div><strong>${chartEmpty}</strong><p>Os totais mensais são calculados a partir do histórico<br class="desktop-break"> de cadastros do seu consultório.</p></div>`}</section><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Próximas consultas</h2><p>Horários dos próximos atendimentos</p></div><button class="text-action" data-go="agenda">Ver agenda →</button></div>${d.upcoming.length ? d.upcoming.map((a) => `<div class="appointment-row"><div class="time-block">${timeFmt(a.start)}</div><div><div class="row-primary">${esc(a.patientName)}</div><div class="row-secondary">${dateFmt(a.start)} · ${esc(a.type)}</div></div><span class="status-pill">Agendada</span></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma consulta próxima</strong>Agendamentos futuros aparecerão aqui.</div>`}</section><section class="panel"><div class="panel-head"><div><h2>Atividade recente</h2><p>Movimentações do consultório</p></div></div>${d.recent.length ? d.recent.map((a) => `<div class="activity-row"><div class="avatar">${a.type === 'patient' ? '♧' : '•'}</div><div><div class="row-primary">${{ patient_created: 'Paciente cadastrado', patient_updated: 'Cadastro atualizado', patient_portal_activated: 'Portal do paciente ativado', assessment_created: 'Avaliação registrada', appointment_created: 'Consulta agendada', goal_created: 'Meta criada' }[a.action] || 'Atividade registrada'}</div><div class="row-secondary">${dateFmt(a.at)}</div></div></div>`).join('') : `<div class="empty-inline"><strong>Nenhuma atividade ainda</strong>Suas movimentações aparecerão aqui.</div>`}</section></div><div class="action-grid"><button class="quick-action" id="quick-patient"><span>＋</span><strong>Cadastrar paciente</strong><small>Inicie um acompanhamento</small></button><button class="quick-action" id="quick-appointment"><span>▦</span><strong>Agendar consulta</strong><small>Organize seus próximos horários</small></button><button class="quick-action" id="quick-assessment"><span>↗</span><strong>Registrar avaliação</strong><small>Atualize medidas corporais</small></button></div>`;
   $('#quick-patient').onclick = () => patientModal();
   $('#quick-appointment').onclick = () => appointmentModal();
   $('#quick-assessment').onclick = () => assessmentModal();
@@ -155,7 +176,8 @@ function bindMealEditor() {
     if (e.target.closest('.add-plan-meal')) {
       host.insertAdjacentHTML('beforeend', mealEditorMarkup({}));
       const added = host.lastElementChild;
-      added.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      labelFields(added);
+      added.scrollIntoView({ block: 'nearest' });
       added.querySelector('.meal-name').focus({ preventScroll: true });
       return;
     }
@@ -164,7 +186,8 @@ function bindMealEditor() {
       list.querySelector('.meal-empty')?.remove();
       list.insertAdjacentHTML('beforeend', foodItemMarkup({}));
       const added = list.lastElementChild;
-      added.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      labelFields(added);
+      added.scrollIntoView({ block: 'nearest' });
       added.querySelector('.food-name').focus({ preventScroll: true });
       return;
     }
@@ -205,7 +228,7 @@ function planPayload(form) {
 async function mealPlansPage() {
   const { mealPlans } = await api('/api/meal-plans');
   $('#content').innerHTML =
-    `${heading('Planos alimentares', 'Monte refeições individuais e preserve cada versão do plano.', `<button class="button primary" id="new-plan">＋ Novo plano</button>`)}<div class="plan-privacy-note"><strong>Versões preservadas</strong><span>Publicar cria uma versão registrada e imutável. O paciente verá somente as versões publicadas no portal separado.</span></div>${mealPlans.length ? `<div class="plan-list">${mealPlans.map((p) => `<article class="panel plan-card"><div class="plan-card-head"><div class="patient-initial">${esc((p.patientName || '?')[0].toUpperCase())}</div><div class="plan-card-title"><h2>${esc(p.name)}</h2><p>${esc(p.patientName)} · ${p.latestVersion?.mealCount || 0} refeições na versão atual</p></div><span class="plan-status ${p.status === 'published' ? 'published' : ''}">${p.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-meta"><span>Versão ${p.latestVersion?.number || 1}</span><span>${p.versionCount} ${p.versionCount === 1 ? 'versão' : 'versões'}</span>${p.publishedVersion ? `<span>Publicada: v${p.publishedVersion}</span>` : ''}</div><div class="plan-card-actions"><button class="button" data-edit-plan="${p.id}">${p.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${p.status === 'draft' ? `<button class="button primary" data-publish-plan="${p.id}">Publicar versão</button>` : ''}</div><details class="version-history" data-plan-id="${p.id}"><summary>Histórico de versões</summary><div class="version-history-content"><small>Abra para carregar o histórico.</small></div></details></article>`).join('')}</div>` : `<section class="empty"><div class="empty-mark">▤</div><h3>Nenhum plano alimentar ainda</h3><p>Crie um rascunho vinculado a um paciente. Alimentos, quantidades e unidades serão registrados sem estimar nutrientes.</p><button class="button primary" id="empty-plan">＋ Criar primeiro plano</button></section>`}`;
+    `${heading('Planos alimentares', 'Monte refeições individuais e preserve cada versão do plano.', `<button class="button primary" id="new-plan">＋ Novo plano</button>`)}<div class="plan-privacy-note"><strong>Versões preservadas</strong><span>Publicar cria uma versão registrada e imutável. O paciente verá somente as versões publicadas no portal separado.</span></div>${mealPlans.length ? `<div class="plan-list">${mealPlans.map((p) => `<article class="panel plan-card"><div class="plan-card-head"><div class="patient-initial">${esc((p.patientName || '?')[0].toUpperCase())}</div><div class="plan-card-title"><h2>${esc(p.name)}</h2><p>${esc(p.patientName)} · ${p.latestVersion?.mealCount || 0} refeições na versão atual</p></div><span class="plan-status ${p.status === 'published' ? 'published' : ''}">${p.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-meta"><span>Versão ${p.latestVersion?.number || 1}</span><span>${p.versionCount} ${p.versionCount === 1 ? 'versão' : 'versões'}</span>${p.publishedVersion ? `<span>Publicada: v${p.publishedVersion}</span>` : ''}</div><div class="plan-card-actions"><button class="button" data-edit-plan="${p.id}">${p.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${p.status === 'draft' ? `<button class="button primary" data-publish-plan="${p.id}">Publicar plano</button>` : ''}</div><details class="version-history" data-plan-id="${p.id}"><summary>Histórico de versões</summary><div class="version-history-content"><small>Abra para carregar o histórico.</small></div></details></article>`).join('')}</div>` : `<section class="empty"><div class="empty-mark">▤</div><h3>Nenhum plano alimentar ainda</h3><p>Crie um rascunho vinculado a um paciente. Alimentos, quantidades e unidades serão registrados sem estimar nutrientes.</p><button class="button primary" id="empty-plan">＋ Criar primeiro plano</button></section>`}`;
   $('#new-plan').onclick = () => mealPlanEditor();
   $('#empty-plan')?.addEventListener('click', () => mealPlanEditor());
   $$('[data-edit-plan]').forEach(
@@ -282,7 +305,7 @@ function mealPlanEditor(plan = null) {
       toast(err.message, true);
     }
   };
-  d.showModal();
+  showLabeledModal(d);
 }
 async function patientModal(p = null) {
   openModal(
@@ -598,12 +621,13 @@ $('#auth-toggle').onclick = () => {
   state.authMode = state.authMode === 'login' ? 'register' : 'login';
   const reg = state.authMode === 'register';
   $('#auth-name').hidden = !reg;
+  $('#auth-name-field').hidden = !reg;
   $('#auth-name').required = reg;
   $('#auth-password').autocomplete = reg ? 'new-password' : 'current-password';
-  $('#auth-title').textContent = reg ? 'Criar sua conta profissional' : 'Bem-vinda ao NutriTrack';
+  $('#auth-title').textContent = reg ? 'Crie sua conta profissional' : 'Entre na sua conta';
   $('#auth-subtitle').textContent = reg
-    ? 'Comece a organizar seus acompanhamentos.'
-    : 'Entre para organizar seus acompanhamentos.';
+    ? 'Preencha seus dados para acessar o painel.'
+    : 'Acesse seu espaço profissional.';
   $('#auth-submit').textContent = reg ? 'Criar conta' : 'Entrar';
   $('#auth-toggle-label').textContent = reg ? 'Já tem uma conta?' : 'Ainda não tem uma conta?';
   $('#auth-toggle').textContent = reg ? 'Entrar' : 'Criar conta';
@@ -617,7 +641,14 @@ $$('.nav-item').forEach((x) => (x.onclick = () => navigate(x.dataset.page)));
 $('#mobile-menu').onclick = () => {
   const open = $('.sidebar').classList.toggle('open');
   $('#mobile-menu').setAttribute('aria-expanded', String(open));
+  if (open) $('.nav-item.active')?.focus();
 };
+document.addEventListener('keydown', (event) => {
+  if (event.key !== 'Escape' || !$('.sidebar').classList.contains('open')) return;
+  $('.sidebar').classList.remove('open');
+  $('#mobile-menu').setAttribute('aria-expanded', 'false');
+  $('#mobile-menu').focus();
+});
 document.addEventListener('click', (e) => {
   if (
     $('.sidebar').classList.contains('open') &&

@@ -4,11 +4,22 @@
   "private": true,
   "description": "API e servidor de desenvolvimento do NutriTrack",
   "scripts": {
-    "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
-    "test": "node --test"
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "start": "pnpm build && node dist/server.js",
+    "dev": "pnpm build && node --watch dist/server.js",
+    "test": "pnpm build && node --test",
+    "dev:build": "tsc -p tsconfig.json --watch"
   },
   "engines": {
     "node": ">=20"
+  },
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/pg": "^8.23.1",
+    "typescript": "^7.0.2"
   }
 }

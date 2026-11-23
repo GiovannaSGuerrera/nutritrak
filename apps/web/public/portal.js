@@ -26,7 +26,7 @@ function portalFrame(content) {
 }
 function portalLogin(error = '') {
   portalFrame(
-    `<section class="auth-card portal-login-card"><p class="eyebrow">ACOMPANHAMENTO NUTRICIONAL</p><h1>Seu espaço de cuidado</h1><p class="muted">Entre para consultar os planos alimentares publicados para você.</p><form id="patient-login-form" autocomplete="off"><label>E-mail<input id="patient-login-email" name="patient-portal-email" type="email" required autocomplete="off" placeholder="voce@exemplo.com"></label><label>Senha<input id="patient-login-password" name="patient-portal-password" type="password" required autocomplete="new-password" placeholder="Sua senha"></label><button class="button primary full">Entrar no portal</button></form><p class="form-error" id="portal-error">${portalEsc(error)}</p><p class="portal-help">Ainda não tem acesso? Peça um convite ao seu profissional.</p><p class="auth-toggle"><a href="/">Acessar espaço profissional</a></p></section>`,
+    `<section class="auth-card portal-login-card"><p class="eyebrow">ACOMPANHAMENTO NUTRICIONAL</p><h1>Portal do paciente</h1><p class="muted">Entre para consultar os planos alimentares publicados para você.</p><form id="patient-login-form" autocomplete="off"><label>E-mail<input id="patient-login-email" name="patient-portal-email" type="email" required autocomplete="off" placeholder="voce@exemplo.com"></label><label>Senha<input id="patient-login-password" name="patient-portal-password" type="password" required autocomplete="new-password" placeholder="Sua senha"></label><button class="button primary full">Entrar no portal</button></form><p class="form-error" role="alert" id="portal-error">${portalEsc(error)}</p><p class="portal-help">Ainda não tem acesso? Peça um convite ao seu profissional.</p><p class="auth-toggle"><a href="/">Acessar espaço profissional</a></p></section>`,
   );
   document.querySelector('#patient-login-form').onsubmit = async (event) => {
     event.preventDefault();
@@ -82,7 +82,7 @@ async function startPatientPortal() {
         body: JSON.stringify({ token }),
       });
       portalFrame(
-        `<section class="auth-card portal-login-card"><p class="eyebrow">CONVITE PARA O NUTRITRACK</p><h1>Ative seu acesso</h1><p class="muted">${portalEsc(invitation.professionalName)} convidou você para acessar seus planos publicados. Use o mesmo e-mail que foi cadastrado no seu perfil.</p><p class="portal-invite-name">Convite para <strong>${portalEsc(invitation.patientName)}</strong></p><form id="patient-activate-form" autocomplete="off"><label>E-mail<input id="patient-activate-email" name="patient-activation-email" type="email" required autocomplete="off" placeholder="voce@exemplo.com"></label><label>Crie uma senha<input id="patient-activate-password" name="patient-activation-password" type="password" required minlength="12" autocomplete="new-password" placeholder="Pelo menos 12 caracteres"></label><label>Confirme a senha<input id="patient-activate-confirm" name="patient-activation-confirm" type="password" required minlength="12" autocomplete="new-password" placeholder="Repita sua senha"></label><button class="button primary full">Ativar meu portal</button></form><p class="form-error" id="portal-error"></p></section>`,
+        `<section class="auth-card portal-login-card"><p class="eyebrow">CONVITE PARA O NUTRITRACK</p><h1>Ative seu acesso</h1><p class="muted">${portalEsc(invitation.professionalName)} convidou você para acessar seus planos publicados. Use o mesmo e-mail que foi cadastrado no seu perfil.</p><p class="portal-invite-name">Convite para <strong>${portalEsc(invitation.patientName)}</strong></p><form id="patient-activate-form" autocomplete="off"><label>E-mail<input id="patient-activate-email" name="patient-activation-email" type="email" required autocomplete="off" placeholder="voce@exemplo.com"></label><label>Crie uma senha<input id="patient-activate-password" name="patient-activation-password" type="password" required minlength="12" autocomplete="new-password" placeholder="Pelo menos 12 caracteres"></label><label>Confirme a senha<input id="patient-activate-confirm" name="patient-activation-confirm" type="password" required minlength="12" autocomplete="new-password" placeholder="Repita sua senha"></label><button class="button primary full">Ativar meu portal</button></form><p class="form-error" role="alert" id="portal-error"></p></section>`,
       );
       document.querySelector('#patient-activate-form').onsubmit = async (event) => {
         event.preventDefault();
@@ -124,14 +124,14 @@ async function createPatientInvitation(patientId, patientName) {
   const dialog = document.querySelector('#modal'),
     root = document.querySelector('#modal-content');
   root.innerHTML = `<h2>Convidar para o portal</h2><p class="modal-intro">O convite permite que ${portalEsc(patientName)} crie um acesso separado e consulte somente os planos publicados para este cadastro. O e-mail já deve estar cadastrado no perfil do paciente.</p><div class="portal-invite-loading"><span class="loading-dot"></span> Gerando convite de uso único…</div>`;
-  dialog.showModal();
+  showLabeledModal(dialog);
   try {
     const { token, expiresAt } = await portalApi(
       `/api/patients/${encodeURIComponent(patientId)}/invitations`,
       { method: 'POST', body: '{}' },
     );
     const link = `${location.origin}/paciente/ativar#${token}`;
-    root.innerHTML = `<h2>Convite pronto</h2><p class="modal-intro">Copie o link e compartilhe diretamente com ${portalEsc(patientName)}. Ele só pode ser usado uma vez e expira em ${portalEsc(new Date(expiresAt).toLocaleString('pt-BR'))}.</p><label class="portal-link-label" for="patient-invite-link">Link de acesso</label><input class="portal-link-input" id="patient-invite-link" readonly value="${portalEsc(link)}"><div class="modal-actions"><button class="button" type="button" id="close-invite">Fechar</button><button class="button primary" type="button" id="copy-invite">Copiar convite</button></div><p class="form-error" id="invite-copy-status" role="status"></p>`;
+    root.innerHTML = `<h2>Convite pronto</h2><p class="modal-intro">Copie o link e compartilhe diretamente com ${portalEsc(patientName)}. Ele só pode ser usado uma vez e expira em ${portalEsc(new Date(expiresAt).toLocaleString('pt-BR'))}.</p><label class="portal-link-label" for="patient-invite-link">Link de acesso</label><input class="portal-link-input" id="patient-invite-link" readonly value="${portalEsc(link)}"><div class="modal-actions"><button class="button" type="button" id="close-invite">Fechar</button><button class="button primary" type="button" id="copy-invite">Copiar convite</button></div><p class="form-error" role="alert" id="invite-copy-status" role="status"></p>`;
     document.querySelector('#close-invite').onclick = () => dialog.close();
     document.querySelector('#copy-invite').onclick = async () => {
       const input = document.querySelector('#patient-invite-link');
@@ -152,14 +152,14 @@ async function createPatientPasswordReset(patientId, patientName) {
   const dialog = document.querySelector('#modal'),
     root = document.querySelector('#modal-content');
   root.innerHTML = `<h2>Redefinir senha do portal</h2><p class="modal-intro">Será criado um link de uso único para ${portalEsc(patientName)}. O link expira em 24 horas e invalida sessões anteriores quando a nova senha for definida.</p><div class="portal-invite-loading"><span class="loading-dot"></span> Gerando link seguro…</div>`;
-  dialog.showModal();
+  showLabeledModal(dialog);
   try {
     const { token, expiresAt } = await portalApi(
       `/api/patients/${encodeURIComponent(patientId)}/password-resets`,
       { method: 'POST', body: '{}' },
     );
     const link = `${location.origin}/paciente/redefinir#${token}`;
-    root.innerHTML = `<h2>Link de redefinição pronto</h2><p class="modal-intro">Compartilhe diretamente com ${portalEsc(patientName)}. O link expira em ${portalEsc(new Date(expiresAt).toLocaleString('pt-BR'))} e só pode ser usado uma vez.</p><label class="portal-link-label" for="patient-reset-link">Link seguro</label><input class="portal-link-input" id="patient-reset-link" readonly value="${portalEsc(link)}"><div class="modal-actions"><button class="button" type="button" id="close-reset">Fechar</button><button class="button primary" type="button" id="copy-reset">Copiar link</button></div><p class="form-error" id="reset-copy-status" role="status"></p>`;
+    root.innerHTML = `<h2>Link de redefinição pronto</h2><p class="modal-intro">Compartilhe diretamente com ${portalEsc(patientName)}. O link expira em ${portalEsc(new Date(expiresAt).toLocaleString('pt-BR'))} e só pode ser usado uma vez.</p><label class="portal-link-label" for="patient-reset-link">Link seguro</label><input class="portal-link-input" id="patient-reset-link" readonly value="${portalEsc(link)}"><div class="modal-actions"><button class="button" type="button" id="close-reset">Fechar</button><button class="button primary" type="button" id="copy-reset">Copiar link</button></div><p class="form-error" role="alert" id="reset-copy-status" role="status"></p>`;
     document.querySelector('#close-reset').onclick = () => dialog.close();
     document.querySelector('#copy-reset').onclick = async () => {
       const input = document.querySelector('#patient-reset-link');
@@ -191,7 +191,7 @@ startPatientPortal = async function () {
       body: JSON.stringify({ token }),
     });
     portalFrame(
-      `<section class="auth-card portal-login-card"><p class="eyebrow">SEGURANÇA DO PORTAL</p><h1>Crie uma nova senha</h1><p class="muted">Defina uma nova senha para ${portalEsc(reset.patientName)}. Ela precisa ter pelo menos 12 caracteres.</p><form id="patient-reset-form" autocomplete="off"><label>Nova senha<input id="patient-reset-password" type="password" required minlength="12" autocomplete="new-password" placeholder="Pelo menos 12 caracteres"></label><label>Confirme a nova senha<input id="patient-reset-confirm" type="password" required minlength="12" autocomplete="new-password" placeholder="Repita sua senha"></label><button class="button primary full">Salvar nova senha</button></form><p class="form-error" id="portal-error"></p></section>`,
+      `<section class="auth-card portal-login-card"><p class="eyebrow">SEGURANÇA DO PORTAL</p><h1>Crie uma nova senha</h1><p class="muted">Defina uma nova senha para ${portalEsc(reset.patientName)}. Ela precisa ter pelo menos 12 caracteres.</p><form id="patient-reset-form" autocomplete="off"><label>Nova senha<input id="patient-reset-password" type="password" required minlength="12" autocomplete="new-password" placeholder="Pelo menos 12 caracteres"></label><label>Confirme a nova senha<input id="patient-reset-confirm" type="password" required minlength="12" autocomplete="new-password" placeholder="Repita sua senha"></label><button class="button primary full">Salvar nova senha</button></form><p class="form-error" role="alert" id="portal-error"></p></section>`,
     );
     document.querySelector('#patient-reset-form').onsubmit = async (event) => {
       event.preventDefault();
