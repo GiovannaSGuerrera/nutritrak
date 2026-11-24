@@ -4,7 +4,7 @@
   "private": true,
   "packageManager": "pnpm@11.25.0",
   "engines": {
-    "node": ">=20"
+    "node": ">=24.15"
   },
   "scripts": {
     "dev": "pnpm --filter @nutritrack/api dev",
@@ -13,10 +13,24 @@
     "dev:python": "docker compose up --build",
     "dev:web": "node apps/web/server.mjs",
     "db:migrate": "docker compose run --rm api alembic upgrade head",
-    "test:python": "docker compose --profile test up -d --wait test-db && docker compose --profile test run --build --rm --no-deps -e DATABASE_URL=postgresql+psycopg://nutritrack:localtestpassword@test-db:5432/nutritrack_test api pytest -q",
-    "format": "prettier --write \"apps/**/*.{js,css,html,json}\" \".vscode/**/*.json\" \"*.json\" \"pnpm-workspace.yaml\""
+    "test:python": "docker compose --profile test up -d --wait test-db && docker compose --profile test run --build --rm --no-deps -e TEST_DATABASE_CONFIRM=disposable -e DATABASE_URL=postgresql+psycopg://nutritrack:localtestpassword@test-db:5432/nutritrack_test api pytest -q",
+    "format": "prettier --write \"apps/**/*.{js,css,html,json}\" \".vscode/**/*.json\" \"*.json\" \"pnpm-workspace.yaml\"",
+    "lint": "eslint apps scripts && prettier --check \"apps/api/src/*.{js,ts}\" \"apps/api/test/*.js\" \"apps/api/scripts/*.js\" \"apps/web/public/*.{js,html,css}\" \"apps/web/server.mjs\"",
+    "typecheck": "tsc -p tsconfig.hardening.json",
+    "build": "node scripts/check.cjs",
+    "test:e2e": "playwright test",
+    "storage": "node apps/api/scripts/storage.js",
+    "mail:worker": "node apps/api/src/mail-worker.js"
   },
   "devDependencies": {
-    "prettier": "^3.9.10"
+    "@axe-core/playwright": "^4.14.0",
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.65.1",
+    "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
+    "eslint": "^10.15.0",
+    "globals": "^17.14.0",
+    "prettier": "^3.9.10",
+    "typescript": "^7.0.2"
   }
 }

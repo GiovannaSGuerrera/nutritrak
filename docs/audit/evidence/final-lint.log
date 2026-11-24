@@ -1,0 +1,3 @@
+$ eslint apps scripts && prettier --check "apps/api/src/*.{js,ts}" "apps/api/test/*.js" "apps/api/scripts/*.js" "apps/web/public/*.{js,html,css}" "apps/web/server.mjs"
+Checking formatting...
+All matched files use Prettier code style!

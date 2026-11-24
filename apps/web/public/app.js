@@ -1,3 +1,4 @@
+/* exported api, toast, openModal, field, showOnboardingShell */
 const $ = (s) => document.querySelector(s),
   $$ = (s) => [...document.querySelectorAll(s)];
 const API_BASE = (window.NUTRITRACK_API_BASE || '').replace(/\/$/, '');
@@ -37,6 +38,7 @@ async function api(url, opts = {}) {
   const r = await fetch(`${API_BASE}${url}`, {
     ...opts,
     credentials: 'include',
+    signal: AbortSignal.timeout(15000),
     headers: {
       'content-type': 'application/json',
       ...(state.workspaceId ? { 'x-workspace-id': state.workspaceId } : {}),
@@ -45,9 +47,24 @@ async function api(url, opts = {}) {
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) {
-    const error = Error(d.error || 'Não foi possível concluir a operação.');
+    const error = Error(
+      d.error ||
+        (typeof d.detail === 'string' ? d.detail : null) ||
+        'Não foi possível concluir a operação.',
+    );
     error.status = r.status;
     throw error;
+  }
+  if (d.page && d.page.nextOffset !== null && !opts.singlePage) {
+    let next = d.page.nextOffset;
+    while (next !== null) {
+      const target = new URL(url, location.origin);
+      target.searchParams.set('offset', String(next));
+      const page = await api(target.pathname + target.search, { ...opts, singlePage: true });
+      d[d.page.collection].push(...page[d.page.collection]);
+      next = page.page.nextOffset;
+    }
+    d.page.nextOffset = null;
   }
   return d;
 }
@@ -78,17 +95,21 @@ function openModal(title, intro, fields, submitText, handler) {
     e.currentTarget.querySelectorAll('select[multiple][name]').forEach((select) => {
       data[select.name] = formData.getAll(select.name);
     });
+    const submit = e.currentTarget.querySelector('[type=submit],button.primary');
+    if (submit) submit.disabled = true;
     try {
       await handler(data);
       d.close();
     } catch (err) {
       toast(err.message, true);
+    } finally {
+      if (submit) submit.disabled = false;
     }
   };
   d.showModal();
 }
 const field = (name, label, type = 'text', opts = {}) =>
-  `<div class="field ${opts.wide ? 'wide' : ''}"><label>${label}</label>${type === 'textarea' ? `<textarea name="${name}" ${opts.required ? 'required' : ''} placeholder="${opts.placeholder || ''}"></textarea>` : type === 'select' ? `<select name="${name}" ${opts.required ? 'required' : ''}>${opts.options.map((x) => (typeof x === 'string' ? `<option>${x}</option>` : `<option value="${esc(x.value)}">${esc(x.label)}</option>`)).join('')}</select>` : `<input name="${name}" type="${type}" ${opts.required ? 'required' : ''} ${opts.min !== undefined ? `min="${opts.min}"` : ''} ${opts.step ? `step="${opts.step}"` : ''} ${opts.placeholder ? `placeholder="${opts.placeholder}"` : ''}>`}</div>`;
+  `<div class="field ${opts.wide ? 'wide' : ''}"><label id="label-${name}">${label}</label>${type === 'textarea' ? `<textarea name="${name}" aria-labelledby="label-${name}" ${opts.required ? 'required' : ''} placeholder="${opts.placeholder || ''}"></textarea>` : type === 'select' ? `<select name="${name}" aria-labelledby="label-${name}" ${opts.required ? 'required' : ''}>${opts.options.map((x) => (typeof x === 'string' ? `<option>${x}</option>` : `<option value="${esc(x.value)}">${esc(x.label)}</option>`)).join('')}</select>` : `<input name="${name}" aria-labelledby="label-${name}" type="${type}" ${opts.required ? 'required' : ''} ${opts.min !== undefined ? `min="${opts.min}"` : ''} ${opts.step ? `step="${opts.step}"` : ''} ${opts.placeholder ? `placeholder="${opts.placeholder}"` : ''}>`}</div>`;
 async function loadPatients() {
   state.patients = (await api('/api/patients')).patients;
   $('#patient-badge').textContent = state.patients.length;
@@ -220,7 +241,7 @@ async function clinicDashboard() {
 }
 function newPatientsChart(months) {
   const max = Math.max(...months.map((m) => m.total), 1);
-  return `<div class="new-patient-chart" role="img" aria-label="Novos pacientes por mês nos últimos seis meses">${months.map((m) => `<div class="month-column"><div class="bar-area"><span class="bar-value">${m.total || ''}</span><div class="month-bar" style="height:${m.total ? Math.max(8, (m.total / max) * 100) : 0}%"></div></div><span class="month-label">${esc(m.label)}</span></div>`).join('')}</div>`;
+  return `<div class="new-patient-chart" role="img" aria-label="Novos pacientes por mês nos últimos seis meses">${months.map((m) => `<div class="month-column"><div class="bar-area"><span class="bar-value">${m.total || ''}</span><svg class="month-bar-chart" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="${100 - (m.total ? Math.max(8, (m.total / max) * 100) : 0)}" width="100" height="${m.total ? Math.max(8, (m.total / max) * 100) : 0}" rx="3" /></svg></div><span class="month-label">${esc(m.label)}</span></div>`).join('')}</div>`;
 }
 async function assessmentsPage() {
   const { assessments } = await api('/api/assessments');
@@ -293,7 +314,7 @@ function planPayload(form) {
 async function mealPlansPage() {
   const { mealPlans } = await api('/api/meal-plans');
   $('#content').innerHTML =
-    `${heading('Planos alimentares', 'Monte refeições individuais e preserve cada versão do plano.', `<button class="button primary" id="new-plan">＋ Novo plano</button>`)}<div class="plan-privacy-note"><strong>Versões preservadas</strong><span>Publicar cria uma versão registrada e imutável. O paciente verá somente as versões publicadas no portal separado.</span></div>${mealPlans.length ? `<div class="plan-list">${mealPlans.map((p) => `<article class="panel plan-card"><div class="plan-card-head"><div class="patient-initial">${esc((p.patientName || '?')[0].toUpperCase())}</div><div class="plan-card-title"><h2>${esc(p.name)}</h2><p>${esc(p.patientName)} · ${p.latestVersion?.mealCount || 0} refeições na versão atual</p></div><span class="plan-status ${p.status === 'published' ? 'published' : ''}">${p.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-meta"><span>Versão ${p.latestVersion?.number || 1}</span><span>${p.versionCount} ${p.versionCount === 1 ? 'versão' : 'versões'}</span>${p.publishedVersion ? `<span>Publicada: v${p.publishedVersion}</span>` : ''}</div><div class="plan-card-actions"><button class="button" data-edit-plan="${p.id}">${p.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${p.status === 'draft' ? `<button class="button primary" data-publish-plan="${p.id}">Publicar versão</button>` : ''}</div><details class="version-history" data-plan-id="${p.id}"><summary>Histórico de versões</summary><div class="version-history-content"><small>Abra para carregar o histórico.</small></div></details></article>`).join('')}</div>` : `<section class="empty"><div class="empty-mark">▤</div><h3>Nenhum plano alimentar ainda</h3><p>Crie um rascunho vinculado a um paciente. Alimentos, quantidades e unidades serão registrados sem estimar nutrientes.</p><button class="button primary" id="empty-plan">＋ Criar primeiro plano</button></section>`}`;
+    `${heading('Planos alimentares', 'Monte refeições individuais e preserve cada versão do plano.', `<button class="button primary" id="new-plan">＋ Novo plano</button>`)}<div class="plan-privacy-note"><strong>Versões preservadas</strong><span>Publicar cria uma versão registrada e imutável. O paciente verá somente as versões publicadas no portal separado.</span></div>${mealPlans.length ? `<div class="plan-list">${mealPlans.map((p) => `<article class="panel plan-card"><div class="plan-card-head"><div class="patient-initial">${esc((p.patientName || '?')[0].toUpperCase())}</div><div class="plan-card-title"><h2>${esc(p.name)}</h2><p>${esc(p.patientName)} · ${p.latestVersion?.mealCount || 0} refeições na versão atual</p></div><span class="plan-status ${p.status === 'published' ? 'published' : ''}">${p.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-meta"><span>Versão ${p.latestVersion?.number || 1}</span><span>${p.versionCount} ${p.versionCount === 1 ? 'versão' : 'versões'}</span>${p.publishedVersion ? `<span>Publicada: v${p.publishedVersion}</span>` : ''}</div><div class="plan-card-actions"><button class="button" data-edit-plan="${p.id}">${p.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${p.status === 'draft' ? `<button class="button primary" data-publish-plan="${p.id}" data-revision="${p.revision || 0}">Publicar versão</button>` : ''}</div><details class="version-history" data-plan-id="${p.id}"><summary>Histórico de versões</summary><div class="version-history-content"><small>Abra para carregar o histórico.</small></div></details></article>`).join('')}</div>` : `<section class="empty"><div class="empty-mark">▤</div><h3>Nenhum plano alimentar ainda</h3><p>Crie um rascunho vinculado a um paciente. Alimentos, quantidades e unidades serão registrados sem estimar nutrientes.</p><button class="button primary" id="empty-plan">＋ Criar primeiro plano</button></section>`}`;
   $('#new-plan').onclick = () => mealPlanEditor();
   $('#empty-plan')?.addEventListener('click', () => mealPlanEditor());
   $$('[data-edit-plan]').forEach(
@@ -313,7 +334,7 @@ async function mealPlansPage() {
         try {
           await api(`/api/meal-plans/${b.dataset.publishPlan}/publish`, {
             method: 'POST',
-            body: '{}',
+            body: JSON.stringify({ expectedRevision: Number(b.dataset.revision || 0) }),
           });
           toast('Versão publicada e preservada');
           await mealPlansPage();
@@ -350,6 +371,7 @@ function mealPlanEditor(plan = null, patientId = state.patient?.id || null) {
     e.preventDefault();
     const form = Object.fromEntries(new FormData(e.currentTarget));
     const payload = planPayload(form);
+    if (plan) payload.expectedRevision = plan.revision || 0;
     if (!payload.meals.length) {
       toast('Adicione pelo menos uma refeição.', true);
       return;
@@ -373,6 +395,10 @@ function mealPlanEditor(plan = null, patientId = state.patient?.id || null) {
       toast(err.message, true);
     }
   };
+  for (const name of ['name', 'objective', 'startDate', 'reviewDate', 'generalInstructions']) {
+    const input = root.querySelector('[name="' + name + '"]');
+    if (input) input.value = name === 'name' ? plan?.name || '' : selected?.[name] || '';
+  }
   d.showModal();
 }
 async function patientModal(p = null) {
@@ -473,7 +499,7 @@ function patientsPage() {
       p.name.toLowerCase().includes(state.query.toLowerCase()),
   );
   $('#content').innerHTML =
-    `${heading('Pacientes', 'Organize os cadastros e acompanhe a evolução individual.', `<button class="button primary" id="new-patient">＋ Novo paciente</button>`)}<div class="toolbar"><input class="search" id="patient-search" placeholder="⌕  Buscar por nome" value="${esc(state.query)}"><select id="patient-filter"><option>Todos</option>${['Ativo', 'Em pausa', 'Arquivado'].map((s) => `<option ${state.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span class="muted" style="margin-left:auto;font-size:11px">${list.length} paciente${list.length === 1 ? '' : 's'}</span></div><div class="patient-list">${list.length ? list.map(patientCard).join('') : `<section class="empty"><div style="font-size:28px;color:#81a47f">♧</div><h3>${state.patients.length ? 'Nenhum resultado' : 'Seu acompanhamento começa aqui'}</h3><p>${state.patients.length ? 'Ajuste a busca ou o filtro para encontrar um paciente.' : 'Cadastre seu primeiro paciente para organizar consultas, avaliações e metas em um só lugar.'}</p>${state.patients.length ? '' : '<button class="button primary" id="empty-create">＋ Cadastrar paciente</button>'}</section>`}</div>`;
+    `${heading('Pacientes', 'Organize os cadastros e acompanhe a evolução individual.', `<button class="button primary" id="new-patient">＋ Novo paciente</button>`)}<div class="toolbar"><input class="search" id="patient-search" aria-label="Buscar pacientes por nome" placeholder="⌕  Buscar por nome" value="${esc(state.query)}"><select id="patient-filter" aria-label="Filtrar pacientes por status"><option>Todos</option>${['Ativo', 'Em pausa', 'Arquivado'].map((s) => `<option ${state.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span class="muted" data-layout="inline-layout-1">${list.length} paciente${list.length === 1 ? '' : 's'}</span></div><div class="patient-list">${list.length ? list.map(patientCard).join('') : `<section class="empty"><div data-layout="inline-layout-2">♧</div><h3>${state.patients.length ? 'Nenhum resultado' : 'Seu acompanhamento começa aqui'}</h3><p>${state.patients.length ? 'Ajuste a busca ou o filtro para encontrar um paciente.' : 'Cadastre seu primeiro paciente para organizar consultas, avaliações e metas em um só lugar.'}</p>${state.patients.length ? '' : '<button class="button primary" id="empty-create">＋ Cadastrar paciente</button>'}</section>`}</div>`;
   $('#new-patient').onclick = () => patientModal();
   $('#empty-create')?.addEventListener('click', () => patientModal());
   $('#patient-search').oninput = (e) => {
@@ -496,19 +522,39 @@ async function patientProfile(id, activeTab = 'overview') {
   const d = await api(`/api/patients/${id}`);
   state.patientData = d;
   state.patient = d.patient;
-  const p = d.patient,
-    ass = d.assessments;
+  const p = d.patient;
   $('#crumb').innerHTML =
-    `<a href="#patients" id="back-patients" style="color:#607268;text-decoration:none">Pacientes</a> <span>/</span> ${esc(p.name)}`;
+    `<a href="#patients" id="back-patients" data-layout="inline-layout-3">Pacientes</a> <span>/</span> ${esc(p.name)}`;
   $('#back-patients').onclick = (e) => {
     e.preventDefault();
     navigate('patients');
   };
   $('#content').innerHTML =
-    `<div class="page-heading"><div style="display:flex;align-items:center;gap:13px"><div class="patient-initial" style="width:48px;height:48px;font-size:18px">${esc(p.name[0].toUpperCase())}</div><div><h1>${esc(p.name)}</h1><p>${esc(p.email || 'E-mail não informado')} · <span class="status-pill">${esc(p.status)}</span></p></div></div><div style="display:flex;gap:8px"><button class="button" id="edit-patient">Editar cadastro</button><button class="button primary" id="add-assessment">＋ Avaliação</button></div></div><div class="detail-tabs"><button class="tab active" data-tab="overview">Visão geral</button><button class="tab" data-tab="meal-plans">Plano alimentar</button><button class="tab" data-tab="assessments">Avaliações</button><button class="tab" data-tab="appointments">Consultas</button><button class="tab" data-tab="goals">Metas</button><button class="tab" data-tab="clinical">Histórico clínico</button></div><div id="patient-tab-content"></div>`;
+    `<div class="page-heading"><div data-layout="inline-layout-4"><div class="patient-initial" data-layout="inline-layout-5">${esc(p.name[0].toUpperCase())}</div><div><h1>${esc(p.name)}</h1><p>${esc(p.email || 'E-mail não informado')} · <span class="status-pill">${esc(p.status)}</span></p></div></div><div data-layout="inline-layout-6"><button class="button" id="edit-patient">Editar cadastro</button><button class="button primary" id="add-assessment">＋ Avaliação</button></div></div><div class="detail-tabs"><button class="tab active" data-tab="overview">Visão geral</button><button class="tab" data-tab="meal-plans">Plano alimentar</button><button class="tab" data-tab="assessments">Avaliações</button><button class="tab" data-tab="appointments">Consultas</button><button class="tab" data-tab="goals">Metas</button><button class="tab" data-tab="clinical">Histórico clínico</button></div><div id="patient-tab-content"></div>`;
   $('#edit-patient').onclick = () => patientModal(p);
   $('#add-assessment').hidden = !d.clinicalAccess;
   if (d.clinicalAccess) $('#add-assessment').onclick = () => assessmentModal(p.id);
+  if (d.clinicalAccess && state.user.securityFeatures) {
+    const button = document.createElement('button');
+    button.className = 'button';
+    button.textContent = 'Exportar dados do paciente';
+    button.onclick = async () => {
+      try {
+        const data = await api(`/api/patients/${encodeURIComponent(p.id)}/export`);
+        const url = URL.createObjectURL(
+          new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
+        );
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'nutritrack-paciente.json';
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      } catch (error) {
+        toast(error.message, true);
+      }
+    };
+    $('#content .page-heading').append(button);
+  }
   const portalButton = document.createElement('button');
   const patientHasEmail = /^\S+@\S+\.\S+$/.test(p.email || '');
   const portalExists = d.portal?.exists ?? !!d.portal?.enabled;
@@ -609,11 +655,11 @@ async function renderPatientTab(tab) {
   const box = $('#patient-tab-content');
   if (tab === 'overview') {
     if (!d.clinicalAccess) {
-      box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Consultas neste consultório</small><strong>${d.appointments.length}</strong></div></div><section class="panel"><div class="panel-head"><div><h2>Agenda</h2><p>Informações clínicas são exibidas somente ao profissional atribuído.</p></div></div>${d.appointments.length ? d.appointments.map((appointment) => `<div class="appointment-row"><div class="time-block">${timeFmt(appointment.start)}</div><div class="row-primary">${dateFmt(appointment.start)} · ${esc(appointment.type)}</div><span class="status-pill">${esc(appointment.status)}</span></div>`).join('') : '<div class="empty-inline">Nenhuma consulta cadastrada.</div>'}<div style="margin-top:17px"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section>`;
+      box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Consultas neste consultório</small><strong>${d.appointments.length}</strong></div></div><section class="panel"><div class="panel-head"><div><h2>Agenda</h2><p>Informações clínicas são exibidas somente ao profissional atribuído.</p></div></div>${d.appointments.length ? d.appointments.map((appointment) => `<div class="appointment-row"><div class="time-block">${timeFmt(appointment.start)}</div><div class="row-primary">${dateFmt(appointment.start)} · ${esc(appointment.type)}</div><span class="status-pill">${esc(appointment.status)}</span></div>`).join('') : '<div class="empty-inline">Nenhuma consulta cadastrada.</div>'}<div data-layout="inline-layout-7"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section>`;
       $('#profile-appointment').onclick = () => appointmentModal(p.id);
       return;
     }
-    box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Avaliações registradas</small><strong>${ass.length}</strong></div><div class="metric"><small>Peso mais recente</small><strong>${latest?.weight != null ? latest.weight + ' kg' : '—'}</strong></div><div class="metric"><small>IMC mais recente</small><strong>${latest?.bmi ?? '—'}</strong></div><div class="metric"><small>Consultas</small><strong>${d.appointments.length}</strong></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Evolução do peso</h2><p>Valores registrados em avaliações</p></div><button class="text-action" data-tab="assessments">Ver histórico →</button></div>${ass.filter((a) => a.weight != null).length ? weightChart(ass) : '<div class="empty-inline">Ainda não há medidas de peso registradas.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Resumo do acompanhamento</h2><p>Informações do cadastro</p></div></div><p class="row-secondary">Objetivo principal</p><div class="row-primary" style="margin:5px 0 16px">${esc(p.objective || 'Não informado')}</div><p class="row-secondary">Próxima consulta</p><div class="row-primary" style="margin-top:5px">${d.appointments.filter((a) => a.status === 'agendada').length ? dateFmt(d.appointments.find((a) => a.status === 'agendada').start) : 'Nenhuma agendada'}</div><div style="margin-top:17px"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section></div>`;
+    box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Avaliações registradas</small><strong>${ass.length}</strong></div><div class="metric"><small>Peso mais recente</small><strong>${latest?.weight != null ? latest.weight + ' kg' : '—'}</strong></div><div class="metric"><small>IMC mais recente</small><strong>${latest?.bmi ?? '—'}</strong></div><div class="metric"><small>Consultas</small><strong>${d.appointments.length}</strong></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Evolução do peso</h2><p>Valores registrados em avaliações</p></div><button class="text-action" data-tab="assessments">Ver histórico →</button></div>${ass.filter((a) => a.weight != null).length ? weightChart(ass) : '<div class="empty-inline">Ainda não há medidas de peso registradas.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Resumo do acompanhamento</h2><p>Informações do cadastro</p></div></div><p class="row-secondary">Objetivo principal</p><div class="row-primary" data-layout="inline-layout-8">${esc(p.objective || 'Não informado')}</div><p class="row-secondary">Próxima consulta</p><div class="row-primary" data-layout="inline-layout-9">${d.appointments.filter((a) => a.status === 'agendada').length ? dateFmt(d.appointments.find((a) => a.status === 'agendada').start) : 'Nenhuma agendada'}</div><div data-layout="inline-layout-7"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section></div>`;
     $('#profile-appointment').onclick = () => appointmentModal(p.id);
     $$('[data-tab]').forEach(
       (x) =>
@@ -626,7 +672,7 @@ async function renderPatientTab(tab) {
     const plans = (await api('/api/meal-plans')).mealPlans.filter(
       (plan) => plan.patientId === p.id,
     );
-    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Plano alimentar</h2><p>Planos vinculados a ${esc(p.name)}</p></div><button class="button primary" id="add-patient-plan">＋ Novo plano</button></div>${plans.length ? `<div class="plan-list">${plans.map((plan) => `<article class="plan-card"><div class="plan-card-head"><div class="plan-card-title"><h2>${esc(plan.name)}</h2><p>${plan.latestVersion?.mealCount || 0} refeições · ${plan.versionCount} ${plan.versionCount === 1 ? 'versão' : 'versões'}</p></div><span class="plan-status ${plan.status === 'published' ? 'published' : ''}">${plan.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-actions"><button class="button" data-patient-edit-plan="${esc(plan.id)}">${plan.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${plan.status === 'draft' ? `<button class="button primary" data-patient-publish-plan="${esc(plan.id)}">Publicar versão</button>` : ''}</div></article>`).join('')}</div>` : '<div class="empty-inline">Nenhum plano alimentar para este paciente.</div>'}</section>`;
+    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Plano alimentar</h2><p>Planos vinculados a ${esc(p.name)}</p></div><button class="button primary" id="add-patient-plan">＋ Novo plano</button></div>${plans.length ? `<div class="plan-list">${plans.map((plan) => `<article class="plan-card"><div class="plan-card-head"><div class="plan-card-title"><h2>${esc(plan.name)}</h2><p>${plan.latestVersion?.mealCount || 0} refeições · ${plan.versionCount} ${plan.versionCount === 1 ? 'versão' : 'versões'}</p></div><span class="plan-status ${plan.status === 'published' ? 'published' : ''}">${plan.status === 'published' ? 'Publicado' : 'Rascunho'}</span></div><div class="plan-card-actions"><button class="button" data-patient-edit-plan="${esc(plan.id)}">${plan.status === 'published' ? '＋ Nova versão' : 'Editar rascunho'}</button>${plan.status === 'draft' ? `<button class="button primary" data-patient-publish-plan="${esc(plan.id)}" data-revision="${plan.revision || 0}">Publicar versão</button>` : ''}</div></article>`).join('')}</div>` : '<div class="empty-inline">Nenhum plano alimentar para este paciente.</div>'}</section>`;
     $('#add-patient-plan').onclick = () => mealPlanEditor(null, p.id);
     $$('[data-patient-edit-plan]').forEach(
       (button) =>
@@ -642,13 +688,13 @@ async function renderPatientTab(tab) {
         (button.onclick = async () => {
           await api(`/api/meal-plans/${button.dataset.patientPublishPlan}/publish`, {
             method: 'POST',
-            body: '{}',
+            body: JSON.stringify({ expectedRevision: Number(button.dataset.revision || 0) }),
           });
           await patientProfile(p.id, 'meal-plans');
         }),
     );
   } else if (tab === 'assessments') {
-    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Avaliações antropométricas</h2><p>As medidas ausentes permanecem sem valor.</p></div><button class="button primary" id="add-assessment-tab">＋ Registrar</button></div>${ass.length ? `<div style="overflow:auto"><table class="table"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>IMC</th><th>Cintura</th><th>% gordura</th><th>Método</th></tr></thead><tbody>${ass.map((a) => `<tr><td>${dateFmt(a.date)}</td><td>${a.weight ?? '—'} ${a.weight ? 'kg' : ''}</td><td>${a.height ?? '—'} ${a.height ? 'cm' : ''}</td><td>${a.bmi ?? '—'}</td><td>${a.waist ?? '—'} ${a.waist ? 'cm' : ''}</td><td>${a.fat ?? '—'} ${a.fat !== null ? '%' : ''}</td><td>${esc(a.method || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-inline">Nenhuma avaliação registrada.</div>`}</section>`;
+    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Avaliações antropométricas</h2><p>As medidas ausentes permanecem sem valor.</p></div><button class="button primary" id="add-assessment-tab">＋ Registrar</button></div>${ass.length ? `<div data-layout="inline-layout-10"><table class="table"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>IMC</th><th>Cintura</th><th>% gordura</th><th>Método</th></tr></thead><tbody>${ass.map((a) => `<tr><td>${dateFmt(a.date)}</td><td>${a.weight ?? '—'} ${a.weight ? 'kg' : ''}</td><td>${a.height ?? '—'} ${a.height ? 'cm' : ''}</td><td>${a.bmi ?? '—'}</td><td>${a.waist ?? '—'} ${a.waist ? 'cm' : ''}</td><td>${a.fat ?? '—'} ${a.fat !== null ? '%' : ''}</td><td>${esc(a.method || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-inline">Nenhuma avaliação registrada.</div>`}</section>`;
     $('#add-assessment-tab').onclick = () => assessmentModal(p.id);
   } else if (tab === 'appointments') {
     box.innerHTML = `<section class="panel"><div class="panel-head"><h2>Histórico de consultas</h2><button class="button primary" id="add-appt">＋ Agendar</button></div>${d.appointments.length ? d.appointments.map((a) => `<div class="appointment-row"><div class="time-block">${timeFmt(a.start)}</div><div><div class="row-primary">${dateFmt(a.start)} · ${esc(a.type)}</div><div class="row-secondary">${esc(a.notes || 'Sem observações')}</div></div><select class="appt-status" data-id="${a.id}"><option value="agendada" ${a.status === 'agendada' ? 'selected' : ''}>Agendada</option><option value="realizada" ${a.status === 'realizada' ? 'selected' : ''}>Realizada</option><option value="falta" ${a.status === 'falta' ? 'selected' : ''}>Falta</option><option value="cancelada" ${a.status === 'cancelada' ? 'selected' : ''}>Cancelada</option></select></div>`).join('') : '<div class="empty-inline">Nenhuma consulta no histórico.</div>'}</section>`;
@@ -682,7 +728,7 @@ async function renderPatientTab(tab) {
         }),
     );
   } else {
-    box.innerHTML = `<section class="panel"><h2 style="font:700 14px Manrope">Histórico clínico</h2><p class="muted" style="font-size:12px">${esc(p.clinicalNotes || 'Não há observações clínicas registradas.')}</p><p class="row-secondary" style="margin-top:18px">Objetivo principal: ${esc(p.objective || 'Não informado')}</p></section>`;
+    box.innerHTML = `<section class="panel"><h2 data-layout="inline-layout-11">Histórico clínico</h2><p class="muted" data-layout="inline-layout-12">${esc(p.clinicalNotes || 'Não há observações clínicas registradas.')}</p><p class="row-secondary" data-layout="inline-layout-13">Objetivo principal: ${esc(p.objective || 'Não informado')}</p></section>`;
   }
 }
 function weightChart(ass) {
@@ -700,10 +746,10 @@ function weightChart(ass) {
     a,
   }));
   const path = coords.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
-  return `<div class="chart-wrap"><svg viewBox="0 0 120 170" preserveAspectRatio="none"><path d="${path}" fill="none" stroke="#527a5f" stroke-width="2" vector-effect="non-scaling-stroke"/>${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="#527a5f"><title>${dateFmt(p.a.date)}: ${p.a.weight} kg</title></circle>`).join('')}</svg></div><div style="display:flex;justify-content:space-between;color:#98a198;font-size:10px">${coords.length ? `<span>${dateFmt(coords[0].a.date)}</span><span>${dateFmt(coords.at(-1).a.date)}</span>` : ''}</div>`;
+  return `<div class="chart-wrap"><svg viewBox="0 0 120 170" preserveAspectRatio="none"><path d="${path}" fill="none" stroke="#527a5f" stroke-width="2" vector-effect="non-scaling-stroke"/>${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="#527a5f"><title>${dateFmt(p.a.date)}: ${p.a.weight} kg</title></circle>`).join('')}</svg></div><div data-layout="inline-layout-14">${coords.length ? `<span>${dateFmt(coords[0].a.date)}</span><span>${dateFmt(coords.at(-1).a.date)}</span>` : ''}</div>`;
 }
 function goalRow(g) {
-  return `<div class="appointment-row"><div class="avatar">◎</div><div style="flex:1"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><select class="goal-status" data-id="${g.id}"><option value="ativa" ${g.status === 'ativa' ? 'selected' : ''}>Ativa</option><option value="concluida" ${g.status === 'concluida' ? 'selected' : ''}>Concluída</option><option value="pausada" ${g.status === 'pausada' ? 'selected' : ''}>Pausada</option></select></div>`;
+  return `<div class="appointment-row"><div class="avatar">◎</div><div data-layout="inline-layout-15"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><select class="goal-status" data-id="${g.id}"><option value="ativa" ${g.status === 'ativa' ? 'selected' : ''}>Ativa</option><option value="concluida" ${g.status === 'concluida' ? 'selected' : ''}>Concluída</option><option value="pausada" ${g.status === 'pausada' ? 'selected' : ''}>Pausada</option></select></div>`;
 }
 function assessmentModal(patientId = null) {
   if (!state.patients.length) {
@@ -785,7 +831,7 @@ async function agendaPage() {
   state.appointments = d.appointments;
   const list = d.appointments;
   $('#content').innerHTML =
-    `${heading('Agenda', 'Consulte os horários e atualize o andamento dos atendimentos.', `<button class="button primary" id="new-appt">＋ Agendar consulta</button>`)}<section class="panel">${list.length ? `<div style="overflow:auto"><table class="table"><thead><tr><th>Data e horário</th><th>Paciente</th><th>Tipo</th><th>Duração</th><th>Status</th></tr></thead><tbody>${list.map((a) => `<tr><td>${dateFmt(a.start)} · ${timeFmt(a.start)}</td><td>${esc(a.patientName)}</td><td>${esc(a.type)}</td><td>${a.duration} min</td><td><select class="appt-status" data-id="${a.id}"><option value="agendada" ${a.status === 'agendada' ? 'selected' : ''}>Agendada</option><option value="realizada" ${a.status === 'realizada' ? 'selected' : ''}>Realizada</option><option value="falta" ${a.status === 'falta' ? 'selected' : ''}>Falta</option><option value="cancelada" ${a.status === 'cancelada' ? 'selected' : ''}>Cancelada</option></select></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty"><div style="font-size:28px;color:#81a47f">▦</div><h3>Sua agenda está vazia</h3><p>Agende consultas para organizar os próximos atendimentos em um só lugar.</p><button class="button primary" id="empty-appt">＋ Agendar consulta</button></div>`}</section>`;
+    `${heading('Agenda', 'Consulte os horários e atualize o andamento dos atendimentos.', `<button class="button primary" id="new-appt">＋ Agendar consulta</button>`)}<section class="panel">${list.length ? `<div data-layout="inline-layout-10"><table class="table"><thead><tr><th>Data e horário</th><th>Paciente</th><th>Tipo</th><th>Duração</th><th>Status</th></tr></thead><tbody>${list.map((a) => `<tr><td>${dateFmt(a.start)} · ${timeFmt(a.start)}</td><td>${esc(a.patientName)}</td><td>${esc(a.type)}</td><td>${a.duration} min</td><td><select class="appt-status" data-id="${a.id}"><option value="agendada" ${a.status === 'agendada' ? 'selected' : ''}>Agendada</option><option value="realizada" ${a.status === 'realizada' ? 'selected' : ''}>Realizada</option><option value="falta" ${a.status === 'falta' ? 'selected' : ''}>Falta</option><option value="cancelada" ${a.status === 'cancelada' ? 'selected' : ''}>Cancelada</option></select></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty"><div data-layout="inline-layout-2">▦</div><h3>Sua agenda está vazia</h3><p>Agende consultas para organizar os próximos atendimentos em um só lugar.</p><button class="button primary" id="empty-appt">＋ Agendar consulta</button></div>`}</section>`;
   $('#new-appt').onclick = () => appointmentModal();
   $('#empty-appt')?.addEventListener('click', () => appointmentModal());
   $$('.appt-status').forEach(
@@ -805,13 +851,9 @@ async function agendaPage() {
 }
 async function goalsPage() {
   await loadPatients();
-  const all = [];
-  for (const p of state.patients) {
-    const d = await api(`/api/patients/${p.id}`);
-    for (const g of d.goals) all.push({ ...g, patientName: p.name });
-  }
+  const all = (await api('/api/goals')).goals;
   $('#content').innerHTML =
-    `${heading('Metas', 'Acompanhe objetivos individuais definidos com seus pacientes.', `<button class="button primary" id="new-goal">＋ Nova meta</button>`)}<section class="panel">${all.length ? all.map((g) => `<div class="appointment-row"><div class="avatar">◎</div><div style="flex:1"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.patientName)} · ${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><span class="status-pill">${g.status === 'ativa' ? 'Ativa' : g.status === 'concluida' ? 'Concluída' : 'Pausada'}</span></div>`).join('') : `<div class="empty"><div style="font-size:28px;color:#81a47f">◎</div><h3>Nenhuma meta cadastrada</h3><p>Crie objetivos individuais de saúde e hábitos junto aos seus pacientes.</p><button class="button primary" id="empty-goal">＋ Criar meta</button></div>`}</section>`;
+    `${heading('Metas', 'Acompanhe objetivos individuais definidos com seus pacientes.', `<button class="button primary" id="new-goal">＋ Nova meta</button>`)}<section class="panel">${all.length ? all.map((g) => `<div class="appointment-row"><div class="avatar">◎</div><div data-layout="inline-layout-15"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.patientName)} · ${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><span class="status-pill">${g.status === 'ativa' ? 'Ativa' : g.status === 'concluida' ? 'Concluída' : 'Pausada'}</span></div>`).join('') : `<div class="empty"><div data-layout="inline-layout-2">◎</div><h3>Nenhuma meta cadastrada</h3><p>Crie objetivos individuais de saúde e hábitos junto aos seus pacientes.</p><button class="button primary" id="empty-goal">＋ Criar meta</button></div>`}</section>`;
   $('#new-goal').onclick = () => goalModal();
   $('#empty-goal')?.addEventListener('click', () => goalModal());
 }
@@ -852,7 +894,7 @@ async function legacyWorkspaceOnboarding() {
   const preview = await api('/api/workspaces/legacy-preview');
   showOnboardingShell();
   $('#content').innerHTML =
-    `<section class="panel" style="max-width:760px;margin:48px auto;padding:28px"><p class="eyebrow">CONFIGURAÇÃO DO CONSULTÓRIO</p><h1>Organize seu espaço de trabalho</h1><p class="muted">Sua conta já existia antes da criação de workspaces. Esta etapa reúne seus registros antigos em um consultório e cria um backup antes da migração. Nenhum paciente será atribuído clinicamente sem sua seleção.</p><form id="legacy-workspace-form"><div class="form-grid"><div class="field wide"><label for="legacy-workspace-name">Nome do consultório</label><input id="legacy-workspace-name" name="name" required maxlength="120" value="Consultório de ${esc(state.user.name)}"></div><div class="field wide"><label class="auth-clinician-option"><input type="checkbox" name="clinician" id="legacy-clinician"> Também vou atender pacientes neste consultório</label></div></div>${preview.patients.length ? `<h2 style="font-size:16px;margin-top:26px">Atribuição clínica principal</h2><p class="muted">Marque somente os pacientes que você atende. Os demais registros ficarão acessíveis administrativamente.</p><div class="legacy-patient-list">${preview.patients.map((p) => `<label class="legacy-patient"><input type="checkbox" name="primaryPatientIds" value="${esc(p.id)}"><span>${esc(p.name)}</span></label>`).join('')}</div>` : '<p class="empty-inline" style="margin-top:22px">Não há pacientes antigos para migrar.</p>'}<div class="modal-actions" style="margin-top:24px">${returnToWorkspace ? '<button type="button" class="button" id="cancel-legacy-migration">Voltar sem migrar</button>' : ''}<button class="button primary">Criar consultório e organizar registros</button></div><p id="legacy-error" class="form-error"></p></form></section>`;
+    `<section class="panel" data-layout="inline-layout-16"><p class="eyebrow">CONFIGURAÇÃO DO CONSULTÓRIO</p><h1>Organize seu espaço de trabalho</h1><p class="muted">Sua conta já existia antes da criação de workspaces. Esta etapa reúne seus registros antigos em um consultório e cria um backup antes da migração. Nenhum paciente será atribuído clinicamente sem sua seleção.</p><form id="legacy-workspace-form"><div class="form-grid"><div class="field wide"><label for="legacy-workspace-name">Nome do consultório</label><input id="legacy-workspace-name" name="name" required maxlength="120" value="Consultório de ${esc(state.user.name)}"></div><div class="field wide"><label class="auth-clinician-option"><input type="checkbox" name="clinician" id="legacy-clinician"> Também vou atender pacientes neste consultório</label></div></div>${preview.patients.length ? `<h2 data-layout="inline-layout-17">Atribuição clínica principal</h2><p class="muted">Marque somente os pacientes que você atende. Os demais registros ficarão acessíveis administrativamente.</p><div class="legacy-patient-list">${preview.patients.map((p) => `<label class="legacy-patient"><input type="checkbox" name="primaryPatientIds" value="${esc(p.id)}"><span>${esc(p.name)}</span></label>`).join('')}</div>` : '<p class="empty-inline" data-layout="inline-layout-18">Não há pacientes antigos para migrar.</p>'}<div class="modal-actions" data-layout="inline-layout-19">${returnToWorkspace ? '<button type="button" class="button" id="cancel-legacy-migration">Voltar sem migrar</button>' : ''}<button class="button primary">Criar consultório e organizar registros</button></div><p id="legacy-error" class="form-error"></p></form></section>`;
   $('#cancel-legacy-migration')?.addEventListener('click', () => location.reload());
   $('#legacy-workspace-form').onsubmit = async (event) => {
     event.preventDefault();
@@ -1229,7 +1271,7 @@ async function renderWorkspaceApp(selected) {
   $('#main-nav').innerHTML = items
     .map(
       ([page, icon, label]) =>
-        `<button class="nav-item" data-page="${page}"><span class="nav-icon">${icon}</span>${label}${page === 'patients' ? '<b id="patient-badge">0</b>' : ''}</button>`,
+        `<button class="nav-item" data-page="${page}"><span class="nav-icon" aria-hidden="true">${icon}</span>${label}${page === 'patients' ? '<b id="patient-badge">0</b>' : ''}</button>`,
     )
     .join('');
   $$('.nav-item').forEach((item) => (item.onclick = () => navigate(item.dataset.page)));
@@ -1269,6 +1311,21 @@ async function showApp() {
     }
   }
   state.user = account.user;
+  $('#security-account').hidden = !account.user.securityFeatures;
+  if (!account.user.emailVerified && window.NUTRITRACK_EMAIL_VERIFICATION_REQUIRED) {
+    showOnboardingShell();
+    $('#content').innerHTML =
+      '<section class=panel><h1>Confirme seu e-mail</h1><p>Abra o link enviado ao endereço cadastrado para liberar seu consultório.</p><button class=button id=resend-verification>Reenviar confirmação</button></section>';
+    $('#resend-verification').onclick = async () => {
+      try {
+        const d = await api('/api/auth/verification/request', { method: 'POST', body: '{}' });
+        toast(d.message);
+      } catch (e) {
+        toast(e.message, true);
+      }
+    };
+    return;
+  }
   state.workspaces = account.workspaces || [];
   if (!state.workspaces.length) {
     const legacy = await api('/api/workspaces/legacy-preview');
@@ -1289,13 +1346,20 @@ $('#auth-form').onsubmit = async (e) => {
   $('#auth-error').textContent = '';
   const endpoint = state.authMode === 'login' ? '/api/login' : '/api/register',
     payload = { email: $('#auth-email').value, password: $('#auth-password').value };
+  const secondFactor = $('#auth-mfa').value.trim();
+  if (secondFactor.length === 6) payload.code = secondFactor;
+  else if (secondFactor) payload.recoveryCode = secondFactor;
   if (state.authMode === 'register') {
     payload.name = $('#auth-name').value;
     if (!sessionStorage.getItem('nutritrack-workspace-invite'))
       payload.profileType = 'nutritionist';
   }
   try {
-    await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    if (result.verificationRequired) {
+      $('#auth-error').textContent = result.message;
+      return;
+    }
     await showApp();
   } catch (err) {
     $('#auth-error').textContent = err.message;
@@ -1307,10 +1371,10 @@ $('#auth-toggle').onclick = () => {
   $('#auth-name').hidden = !reg;
   $('#auth-name').required = reg;
   $('#auth-password').autocomplete = reg ? 'new-password' : 'current-password';
-  $('#auth-title').textContent = reg ? 'Criar sua conta profissional' : 'Bem-vinda ao NutriTrack';
+  $('#auth-title').textContent = reg ? 'Criar conta de nutricionista' : 'Bem-vinda ao NutriTrack';
   $('#auth-subtitle').textContent = reg
-    ? 'Comece a organizar seus acompanhamentos.'
-    : 'Entre para organizar seus acompanhamentos.';
+    ? 'Tenha seu espaço individual para acompanhar pacientes e atendimentos.'
+    : 'Entre para organizar seus pacientes, consultas e planos alimentares.';
   $('#auth-submit').textContent = reg ? 'Criar conta' : 'Entrar';
   $('#auth-toggle-label').textContent = reg ? 'Já tem uma conta?' : 'Ainda não tem uma conta?';
   $('#auth-toggle').textContent = reg ? 'Entrar' : 'Criar conta';
@@ -1375,9 +1439,19 @@ document.addEventListener(
   },
   true,
 );
-if (!location.pathname.startsWith('/paciente'))
+if (
+  !location.pathname.startsWith('/paciente') &&
+  !['/privacy', '/terms'].includes(location.pathname)
+)
   showApp().catch(() => {
     $('#auth').hidden = false;
     $('#app').hidden = true;
   });
 if (location.protocol === 'file:') $('#runtime-notice').hidden = false;
+
+if (window.NUTRITRACK_EMAIL_VERIFICATION_REQUIRED) {
+  const note = document.querySelector('.auth-note');
+  if (note)
+    note.textContent =
+      'Use apenas informações necessárias ao acompanhamento. Consulte o aviso de privacidade.';
+}

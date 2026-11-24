@@ -1,0 +1,29 @@
+$ pnpm --filter @nutritrack/api test
+$ node --test
+✔ papéis não concedem acesso clínico sem capacidade e atribuição explícita (3.8047ms)
+✔ membership encerrado ou workspace adulterado não autoriza operação (0.7082ms)
+✔ professional email ownership, password recovery and global session revocation (666.5922ms)
+✔ autenticação, cadastro, avaliação, isolamento e conflito de agenda (2895.3891ms)
+✔ operator tools import without changing source and restore authenticated encrypted backup (756.3091ms)
+✔ SQLite: uniqueness, deferred references, rollback and online backup (200.7755ms)
+▶ HTTP security: concurrency, tenant isolation, atomic rejection and durable revocation
+  ✔ direct API requests cannot read/update another tenant (19.9449ms)
+  ✔ invalid update is atomic and origin is checked (26.0327ms)
+  ✔ single-use reset under concurrent HTTP and revoked cookie after restart (265.9808ms)
+  ✔ revision preconditions prevent lost updates and stale publication (42.6509ms)
+  ✔ clinical exports are isolated and contain no credential material (16.9703ms)
+  ✔ personal export, reauthentication and MFA recovery codes (385.3851ms)
+  ✔ appointment reactivation cannot overlap (34.1817ms)
+✔ HTTP security: concurrency, tenant isolation, atomic rejection and durable revocation (1238.0346ms)
+{"event":"mail_delivery_failed","attempts":1}
+✔ encrypted transactional mail outbox: authentication, delivery and bounded retries (464.5996ms)
+✔ production rejects unsafe startup and enforces origin, verification, cookies and generic signup (560.7749ms)
+✔ TOTP RFC6238 SHA1 vector and counter replay protection (2.8813ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3025.0708

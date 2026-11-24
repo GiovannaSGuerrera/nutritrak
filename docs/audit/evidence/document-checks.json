@@ -1,0 +1,15 @@
+{
+  "required_reports": 6,
+  "findings": 23,
+  "severities": {
+    "HIGH": 8,
+    "MEDIUM": 12,
+    "LOW": 3
+  },
+  "node_operations": 47,
+  "python_operations": 36,
+  "weighted_score": 42.7,
+  "broken_local_links": [],
+  "reviewed_source_hash_changes": [],
+  "status": "PASS"
+}

@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2023",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    "skipLibCheck": true
+  },
+  "files": [
+    "apps/api/src/persistence.js",
+    "apps/api/src/mail.js",
+    "apps/api/src/mail-worker.js",
+    "apps/api/src/account-security.js",
+    "apps/api/src/totp.js",
+    "apps/api/src/backup-crypto.js",
+    "apps/api/src/legal.js"
+  ]
+}

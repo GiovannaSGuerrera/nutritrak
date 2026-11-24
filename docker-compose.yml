@@ -28,7 +28,9 @@ services:
       timeout: 3s
       retries: 20
   api:
-    build: ./apps/api-python
+    build:
+      context: ./apps/api-python
+      target: test
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-nutritrack}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-nutritrack}
       APP_ENV: ${APP_ENV:-development}

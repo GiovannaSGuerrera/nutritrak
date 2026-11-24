@@ -1,0 +1,158 @@
+diff --git a/README.md b/README.md
+index 2da4305..91f6fd9 100644
+--- a/README.md
++++ b/README.md
+@@ -43,7 +43,7 @@ docker compose exec -T db pg_restore -U nutritrack -d nutritrack --clean --if-ex
+ 
+ Não use `--clean` contra a base ativa. Em hospedagem, use o mecanismo de backup do provedor, teste restauração em uma base isolada e documente RPO/RTO antes do corte.
+ 
+-NutriTrack é uma plataforma em desenvolvimento para apoiar nutricionistas no acompanhamento de pacientes. O objetivo é evoluir, em etapas compreensíveis e testáveis, de uma base funcional para um produto com aplicações web e móveis e uma API central.
++NutriTrack é uma plataforma em desenvolvimento para nutricionistas que atendem individualmente. O produto comercial será direcionado a nutricionistas, com um espaço profissional próprio para acompanhar pacientes, consultas, avaliações, metas e planos alimentares. A implementação de clínica permanece disponível por feature flag para desenvolvimento e validação.
+ 
+ ## Estado atual
+ 
+@@ -95,7 +95,7 @@ A API ainda serve os arquivos estáticos da web. A separação em pastas é um l
+ 
+ A API exige membership ativo no workspace selecionado e aplica papéis e atribuições clínicas por paciente. Após cadastro, uma etapa anterior ao painel pergunta se a pessoa criará consultório próprio (com nome e escolha de papel clínico) ou entrará por convite; só a proprietária recebe gestão do workspace. Contas antigas precisam confirmar uma migração explícita com backup local. Convites de equipe e do portal são links de uso único compartilhados manualmente; não há envio automático por e-mail. Senhas são derivadas por scrypt; cookies são HttpOnly/SameSite e as sessões expiram no servidor após oito horas.
+ 
+-O modo publicado está temporariamente limitado ao espaço individual de nutricionistas. A seleção de perfis, gestão de clínica/equipe e rotas administrativas ficam desativadas no frontend e na API, sem remover sua implementação nem os dados associados. Em produção, a flag `NUTRITRACK_CLINIC_ADMIN_ENABLED` é desativada por padrão; para reativar a experiência administrativa de forma coordenada, configure-a como `true` na API e no servidor web. Fora de produção, o modo administrativo existente continua habilitado por padrão e pode ser desativado com `NUTRITRACK_CLINIC_ADMIN_ENABLED=false`.
++O modo publicado atende nutricionistas individualmente. A seleção de perfis, gestão de clínica/equipe e rotas administrativas ficam desativadas no frontend e na API, sem remover sua implementação nem os dados associados. Em produção, a flag `NUTRITRACK_CLINIC_ADMIN_ENABLED` é desativada por padrão; para reativar a experiência administrativa de forma coordenada, configure-a como `true` na API e no servidor web. Fora de produção, o modo administrativo existente continua habilitado por padrão e pode ser desativado com `NUTRITRACK_CLINIC_ADMIN_ENABLED=false`.
+ 
+ Store JSON e sessões em memória são somente para desenvolvimento de uma instância; não há garantias de concorrência, disponibilidade, recuperação ou retenção apropriada. Também faltam rate limiting, MFA, armazenamento compartilhado de sessão, banco relacional e revisão profissional de segurança/privacidade. O projeto não declara conformidade automática com a LGPD nem prontidão para dados clínicos reais. Consulte [o estado da implementação multi-tenant](docs/MVP_IMPLEMENTATION_STATUS.md) e a arquitetura antes de ampliar o uso.
+ 
+diff --git a/apps/api/src/server.js b/apps/api/src/server.js
+index 54c5bed..46df9cb 100644
+--- a/apps/api/src/server.js
++++ b/apps/api/src/server.js
+@@ -18,6 +18,9 @@ const PUBLIC_DIR = path.resolve(__dirname, '../../web/public');
+ const DATA_DIR = process.env.DATA_DIR || path.join(ROOT, 'data');
+ const STORE = path.join(DATA_DIR, 'store.json');
+ const PORT = Number(process.env.PORT || 3000);
++const HOST = process.env.HOST || '0.0.0.0';
++const RATE_WINDOW_MS = 15 * 60 * 1000;
++const rateLimits = new Map();
+ // Clinic administration remains implemented but is disabled in the published individual experience.
+ const CLINIC_ADMIN_ENABLED =
+   process.env.NUTRITRACK_CLINIC_ADMIN_ENABLED === 'true' ||
+@@ -108,6 +111,12 @@ function json(res, status, body) {
+     'content-type': 'application/json; charset=utf-8',
+     'cache-control': 'no-store',
+     'x-content-type-options': 'nosniff',
++    'x-frame-options': 'DENY',
++    'referrer-policy': 'no-referrer',
++    'permissions-policy': 'camera=(), microphone=(), geolocation=()',
++    ...(process.env.NODE_ENV === 'production'
++      ? { 'strict-transport-security': 'max-age=31536000; includeSubDomains' }
++      : {}),
+   });
+   res.end(JSON.stringify(body));
+ }
+@@ -169,6 +178,39 @@ function setSessionCookie(res, name, token, maxAge) {
+     `${name}=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
+   );
+ }
++function rateLimit(req, key, maximum = 10) {
++  const now = Date.now();
++  const identity = `${key}:${req.socket.remoteAddress || 'unknown'}`;
++  const current = rateLimits.get(identity);
++  if (!current || current.resetAt <= now) {
++    rateLimits.set(identity, { count: 1, resetAt: now + RATE_WINDOW_MS });
++    return null;
++  }
++  current.count += 1;
++  if (current.count > maximum) {
++    const error = Object.assign(new Error('Muitas tentativas. Tente novamente mais tarde.'), {
++      status: 429,
++      retryAfter: Math.ceil((current.resetAt - now) / 1000),
++    });
++    return error;
++  }
++  return null;
++}
++function enforceRequestPolicy(req) {
++  const origin = req.headers.origin;
++  const allowed = (process.env.CORS_ORIGINS || '').split(',').map((x) => x.trim()).filter(Boolean);
++  if (origin && allowed.length && !allowed.includes(origin))
++    throw Object.assign(new Error('Origem não permitida'), { status: 403 });
++  const sensitive =
++    req.method === 'POST' &&
++    ['/api/login', '/api/register', '/api/patient/login', '/api/patient/activate'].includes(
++      new URL(req.url, 'http://localhost').pathname,
++    );
++  if (sensitive) {
++    const error = rateLimit(req, new URL(req.url, 'http://localhost').pathname, 10);
++    if (error) throw error;
++  }
++}
+ function tokenHash(token) {
+   return crypto.createHash('sha256').update(token).digest('hex');
+ }
+@@ -393,6 +435,7 @@ function canPublish(version) {
+   );
+ }
+ async function handle(req, res) {
++  enforceRequestPolicy(req);
+   const url = new URL(req.url, 'http://localhost');
+   if (req.method === 'GET' && url.pathname === '/api/me') {
+     const u = userFor(req);
+@@ -594,6 +637,9 @@ async function handle(req, res) {
+     account.salt = salt;
+     account.hash = hash.toString('hex');
+     account.passwordUpdatedAt = new Date().toISOString();
++    for (const [session, value] of patientSessions) {
++      if (value.subjectId === account.id) patientSessions.delete(session);
++    }
+     reset.usedAt = new Date().toISOString();
+     for (const [session, value] of patientSessions)
+       if (value.subjectId === account.id) patientSessions.delete(session);
+@@ -1830,7 +1876,7 @@ const server = http.createServer((req, res) => {
+ });
+ loadStore()
+   .then(() =>
+-    server.listen(PORT, () => console.log(`NutriTrack disponível em http://localhost:${PORT}`)),
++    server.listen(PORT, HOST, () => console.log(`NutriTrack disponível em http://${HOST}:${PORT}`)),
+   )
+   .catch((e) => {
+     console.error('startup_error', e.message);
+diff --git a/apps/web/public/app.js b/apps/web/public/app.js
+index 0236578..9a69a96 100644
+--- a/apps/web/public/app.js
++++ b/apps/web/public/app.js
+@@ -1307,10 +1307,10 @@ $('#auth-toggle').onclick = () => {
+   $('#auth-name').hidden = !reg;
+   $('#auth-name').required = reg;
+   $('#auth-password').autocomplete = reg ? 'new-password' : 'current-password';
+-  $('#auth-title').textContent = reg ? 'Criar sua conta profissional' : 'Bem-vinda ao NutriTrack';
++  $('#auth-title').textContent = reg ? 'Criar conta de nutricionista' : 'Bem-vinda ao NutriTrack';
+   $('#auth-subtitle').textContent = reg
+-    ? 'Comece a organizar seus acompanhamentos.'
+-    : 'Entre para organizar seus acompanhamentos.';
++    ? 'Tenha seu espaço individual para acompanhar pacientes e atendimentos.'
++    : 'Entre para organizar seus pacientes, consultas e planos alimentares.';
+   $('#auth-submit').textContent = reg ? 'Criar conta' : 'Entrar';
+   $('#auth-toggle-label').textContent = reg ? 'Já tem uma conta?' : 'Ainda não tem uma conta?';
+   $('#auth-toggle').textContent = reg ? 'Entrar' : 'Criar conta';
+diff --git a/apps/web/public/index.html b/apps/web/public/index.html
+index e12eda8..9cb5503 100644
+--- a/apps/web/public/index.html
++++ b/apps/web/public/index.html
+@@ -7,7 +7,7 @@
+     <title>NutriTrack — acompanhamento nutricional</title>
+     <link rel="stylesheet" href="/styles.css?v=20261029-3" />
+     <script src="/config.js" defer></script>
+-    <script src="/app.js?v=20261031-1" defer></script>
++    <script src="/app.js?v=20261105-1" defer></script>
+     <script src="/portal.js?v=20261030-1" defer></script>
+   </head>
+   <body>
+@@ -18,7 +18,9 @@
+       <section class="auth-card">
+         <p class="eyebrow">NUTRITRACK</p>
+         <h1 id="auth-title">Entre na sua conta</h1>
+-        <p class="muted" id="auth-subtitle">Acesse seus pacientes e atendimentos.</p>
++        <p class="muted" id="auth-subtitle">
++          Organize pacientes, consultas, avaliações e planos alimentares.
++        </p>
+         <p class="runtime-notice" id="runtime-notice" hidden>
+           Para usar o NutriTrack, inicie o servidor na pasta do projeto com <code>pnpm dev</code> e
+           abra <code>http://localhost:3000</code>.

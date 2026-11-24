@@ -2,6 +2,11 @@
 
 node_modules/
 .venv/
+.hardening-venv/
+.hardening-browser/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
 .tmp-python-packages/
 .tmp-buildx/
 .tmp-docker/
@@ -38,3 +43,9 @@ coverage/
 .DS_Store
 Thumbs.db
 Desktop.ini
+
+.hardening-postgres/
+playwright-report/
+test-results/
+
+.hardening-*/

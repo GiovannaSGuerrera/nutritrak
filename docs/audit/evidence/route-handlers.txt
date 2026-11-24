@@ -1,0 +1,94 @@
+apps/api/src/account-security.js:55:  if (req.method === 'POST' && route === '/api/auth/password-reset/request') {
+apps/api/src/account-security.js:128:  if (req.method === 'POST' && route === '/api/auth/verification/request') {
+apps/api/src/account-security.js:142:  if (req.method === 'GET' && route === '/api/account/export') {
+apps/api/src/account-security.js:164:  if (req.method === 'POST' && route === '/api/account/mfa/setup') {
+apps/api/src/account-security.js:178:  if (req.method === 'POST' && route === '/api/account/mfa/confirm') {
+apps/api/src/account-security.js:205:  if (req.method === 'POST' && route === '/api/account/mfa/disable') {
+apps/api/src/account-security.js:215:  if (req.method === 'POST' && route === '/api/account/password') {
+apps/api/src/account-security.js:232:  if (req.method === 'POST' && route === '/api/account/sessions/revoke') {
+apps/api/src/account-security.js:238:  if (req.method === 'POST' && route === '/api/account/deletion-request') {
+apps/api/src/account-security.js:257:  if (req.method === 'DELETE' && route === '/api/account') {
+apps/api-python/app/main.py:434:@app.get("/health")
+apps/api-python/app/main.py:440:@app.post("/api/register", status_code=201)
+apps/api-python/app/main.py:499:@app.post("/api/login")
+apps/api-python/app/main.py:525:@app.post("/api/logout")
+apps/api-python/app/main.py:538:@app.get("/api/me")
+apps/api-python/app/main.py:562:@app.get("/api/workspaces/legacy-preview")
+apps/api-python/app/main.py:567:@app.post("/api/workspaces/select")
+apps/api-python/app/main.py:608:@app.get("/api/dashboard")
+apps/api-python/app/main.py:713:@app.get("/api/clinicians")
+apps/api-python/app/main.py:735:@app.get("/api/patients")
+apps/api-python/app/main.py:780:@app.post("/api/patients", status_code=201)
+apps/api-python/app/main.py:841:@app.get("/api/patients/{patient_id}")
+apps/api-python/app/main.py:905:@app.patch("/api/patients/{patient_id}")
+apps/api-python/app/main.py:969:@app.put("/api/patients/{patient_id}/assignments")
+apps/api-python/app/main.py:1028:@app.post("/api/patients/{patient_id}/invitations")
+apps/api-python/app/main.py:1055:@app.post("/api/patients/{patient_id}/password-resets")
+apps/api-python/app/main.py:1088:@app.post("/api/patient/invitations/validate")
+apps/api-python/app/main.py:1115:@app.post("/api/patient/activate", status_code=201)
+apps/api-python/app/main.py:1155:@app.post("/api/patient/login")
+apps/api-python/app/main.py:1174:@app.get("/api/patient/me")
+apps/api-python/app/main.py:1180:@app.post("/api/patient/logout")
+apps/api-python/app/main.py:1193:@app.post("/api/patient/password-resets/validate")
+apps/api-python/app/main.py:1212:@app.post("/api/patient/password-resets/complete")
+apps/api-python/app/main.py:1251:@app.patch("/api/patients/{patient_id}/portal-access")
+apps/api-python/app/main.py:1283:@app.post("/api/assessments", status_code=201)
+apps/api-python/app/main.py:1360:@app.get("/api/assessments")
+apps/api-python/app/main.py:1413:@app.post("/api/appointments", status_code=201)
+apps/api-python/app/main.py:1460:@app.get("/api/appointments")
+apps/api-python/app/main.py:1510:@app.patch("/api/appointments/{appointment_id}")
+apps/api-python/app/main.py:1557:@app.post("/api/goals", status_code=201)
+apps/api-python/app/main.py:1577:@app.patch("/api/goals/{goal_id}")
+apps/api-python/app/main.py:1605:@app.get("/api/meal-plans")
+apps/api-python/app/main.py:1664:@app.get("/api/goals")
+apps/api-python/app/main.py:1699:@app.post("/api/meal-plans", status_code=201)
+apps/api-python/app/main.py:1741:@app.get("/api/meal-plans/{plan_id}")
+apps/api-python/app/main.py:1756:@app.put("/api/meal-plans/{plan_id}/draft")
+apps/api-python/app/main.py:1809:@app.post("/api/meal-plans/{plan_id}/publish")
+apps/api/src/server.js:636:  if (req.method === 'GET' && url.pathname === '/api/me') {
+apps/api/src/server.js:649:  if (req.method === 'POST' && url.pathname === '/api/patient/invitations/validate') {
+apps/api/src/server.js:677:  if (req.method === 'POST' && url.pathname === '/api/patient/activate') {
+apps/api/src/server.js:766:  if (req.method === 'POST' && url.pathname === '/api/patient/login') {
+apps/api/src/server.js:794:  if (req.method === 'POST' && url.pathname === '/api/patient/password-resets/validate') {
+apps/api/src/server.js:819:  if (req.method === 'POST' && url.pathname === '/api/patient/password-resets/complete') {
+apps/api/src/server.js:854:  if (req.method === 'POST' && url.pathname === '/api/patient/logout') {
+apps/api/src/server.js:860:  if (req.method === 'GET' && url.pathname === '/api/patient/export') {
+apps/api/src/server.js:878:  if (req.method === 'GET' && url.pathname === '/api/patient/me') {
+apps/api/src/server.js:888:  if (req.method === 'POST' && url.pathname === '/api/register') {
+apps/api/src/server.js:975:  if (req.method === 'POST' && url.pathname === '/api/login') {
+apps/api/src/server.js:998:  if (req.method === 'POST' && url.pathname === '/api/logout') {
+apps/api/src/server.js:1025:    url.pathname === '/api/clinicians' ||
+apps/api/src/server.js:1031:  if (req.method === 'GET' && url.pathname === '/api/workspaces/legacy-preview') {
+apps/api/src/server.js:1041:  if (req.method === 'POST' && url.pathname === '/api/workspaces/migrate-personal') {
+apps/api/src/server.js:1132:  if (req.method === 'GET' && url.pathname === '/api/workspaces')
+apps/api/src/server.js:1140:  if (req.method === 'POST' && url.pathname === '/api/workspaces/select') {
+apps/api/src/server.js:1169:  if (req.method === 'POST' && url.pathname === '/api/workspaces') {
+apps/api/src/server.js:1197:  const workspaceMembersMatch = url.pathname.match(/^\/api\/workspaces\/([^/]+)\/members$/);
+apps/api/src/server.js:1198:  const memberMatch = url.pathname.match(/^\/api\/workspaces\/([^/]+)\/members\/([^/]+)$/);
+apps/api/src/server.js:1199:  const invitationMatch = url.pathname.match(/^\/api\/workspaces\/([^/]+)\/invitations$/);
+apps/api/src/server.js:1200:  const invitationItemMatch = url.pathname.match(
+apps/api/src/server.js:1203:  const workspaceSettingsMatch = url.pathname.match(/^\/api\/workspaces\/([^/]+)$/);
+apps/api/src/server.js:1204:  const workspaceRolesMatch = url.pathname.match(/^\/api\/workspaces\/([^/]+)\/roles$/);
+apps/api/src/server.js:1205:  if (req.method === 'POST' && url.pathname === '/api/workspace-invitations/accept') {
+apps/api/src/server.js:1491:  if (req.method === 'GET' && url.pathname === '/api/clinicians') {
+apps/api/src/server.js:1520:  if (req.method === 'GET' && url.pathname === '/api/dashboard') {
+apps/api/src/server.js:1584:  if (req.method === 'GET' && url.pathname === '/api/patients') {
+apps/api/src/server.js:1598:  if (req.method === 'POST' && url.pathname === '/api/patients') {
+apps/api/src/server.js:1660:  const exportMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/export$/);
+apps/api/src/server.js:1678:  const patientMatch = url.pathname.match(/^\/api\/patients\/([^/]+)$/);
+apps/api/src/server.js:1750:  const assignmentMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/assignments$/);
+apps/api/src/server.js:1783:  const portalAccessMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/portal-access$/);
+apps/api/src/server.js:1832:  const inviteMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/invitations$/);
+apps/api/src/server.js:1875:  const resetMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/password-resets$/);
+apps/api/src/server.js:1906:  if (req.method === 'GET' && url.pathname === '/api/assessments') {
+apps/api/src/server.js:1922:  if (req.method === 'POST' && url.pathname === '/api/assessments') {
+apps/api/src/server.js:1973:  if (req.method === 'POST' && url.pathname === '/api/appointments') {
+apps/api/src/server.js:2055:  if (req.method === 'GET' && url.pathname === '/api/goals') {
+apps/api/src/server.js:2071:  if (req.method === 'POST' && url.pathname === '/api/goals') {
+apps/api/src/server.js:2117:  if (req.method === 'GET' && url.pathname === '/api/meal-plans') {
+apps/api/src/server.js:2153:  if (req.method === 'POST' && url.pathname === '/api/meal-plans') {
+apps/api/src/server.js:2182:  const mealPlanMatch = url.pathname.match(/^\/api\/meal-plans\/([^/]+)$/);
+apps/api/src/server.js:2183:  const draftMatch = url.pathname.match(/^\/api\/meal-plans\/([^/]+)\/draft$/);
+apps/api/src/server.js:2184:  const publishMatch = url.pathname.match(/^\/api\/meal-plans\/([^/]+)\/publish$/);
+apps/api/src/server.js:2264:  if (req.method === 'GET' && url.pathname === '/api/appointments') {
+apps/api/src/server.js:2343:  if (url.pathname === '/health' || url.pathname === '/ready') {

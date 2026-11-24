@@ -1,0 +1,62 @@
+name: Validation
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@f40ffcd9367d9f12939873eb1018b921a783ffaa
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm build
+      - run: pnpm test
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+      - run: pnpm audit --audit-level=moderate
+      - run: docker build -f apps/api/Dockerfile .
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: nutritrack_ci_test
+          POSTGRES_USER: synthetic_ci
+          POSTGRES_PASSWORD: synthetic_ci_only_password
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U synthetic_ci -d nutritrack_ci_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      DATABASE_URL: postgresql+psycopg://synthetic_ci:synthetic_ci_only_password@127.0.0.1:5432/nutritrack_ci_test
+      TEST_DATABASE_CONFIRM: disposable
+      PYTHONPATH: apps/api-python
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      - run: pip install --require-hashes -r apps/api-python/requirements-dev.lock
+      - run: python -m ruff check apps/api-python --select E9,F63,F7,F82
+      - run: python -m black --check apps/api-python/app apps/api-python/migrations apps/api-python/tests
+      - run: python -m compileall -q apps/api-python
+      - run: python -m mypy apps/api-python/app/security.py apps/api-python/app/database.py --check-untyped-defs --ignore-missing-imports
+      - run: python -m alembic upgrade head
+        working-directory: apps/api-python
+      - run: python -m alembic check
+        working-directory: apps/api-python
+      - run: python -m pytest apps/api-python/tests -q
+      - run: docker build -f apps/api-python/Dockerfile apps/api-python

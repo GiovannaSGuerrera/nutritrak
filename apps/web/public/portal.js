@@ -1,3 +1,4 @@
+/* exported createPatientInvitation, createPatientPasswordReset, portalEsc */
 const portalRoot = document.querySelector('#patient-portal');
 const PORTAL_API_BASE = (window.NUTRITRACK_API_BASE || '').replace(/\/$/, '');
 const portalEsc = (value) =>
@@ -10,6 +11,7 @@ async function portalApi(url, options = {}) {
   const response = await fetch(`${PORTAL_API_BASE}${url}`, {
     ...options,
     credentials: 'include',
+    signal: AbortSignal.timeout(15000),
     headers: {
       'content-type': 'application/json',
       ...(workspaceId ? { 'x-workspace-id': workspaceId } : {}),
@@ -18,7 +20,11 @@ async function portalApi(url, options = {}) {
   });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) {
-    const error = Error(data.error || 'Não foi possível concluir a operação.');
+    const error = Error(
+      data.error ||
+        (typeof data.detail === 'string' ? data.detail : null) ||
+        'Não foi possível concluir a operação.',
+    );
     error.status = response.status;
     throw error;
   }
@@ -67,11 +73,15 @@ function renderPatientPortal(portal) {
     }
   };
   document.querySelector('#patient-logout').onclick = async () => {
-    await portalApi('/api/patient/logout', { method: 'POST' });
-    portalLogin();
+    try {
+      await portalApi('/api/patient/logout', { method: 'POST' });
+      portalLogin();
+    } catch (error) {
+      toast(error.message, true);
+    }
   };
 }
-async function startPatientPortal() {
+let startPatientPortal = async function () {
   if (!location.pathname.startsWith('/paciente')) return;
   portalRoot.hidden = false;
   document.querySelector('#auth').hidden = true;
@@ -126,7 +136,7 @@ async function startPatientPortal() {
     if (error.status === 401) portalLogin();
     else portalLogin(error.message);
   }
-}
+};
 async function createPatientInvitation(patientId, patientName) {
   const dialog = document.querySelector('#modal'),
     root = document.querySelector('#modal-content');

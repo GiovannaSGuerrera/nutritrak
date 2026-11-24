@@ -1,0 +1,70 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: production
+      STORE_BACKEND: sqlite
+      DATA_DIR: /srv/data
+      TRUST_PROXY: "1"
+      PUBLIC_ORIGIN: https://${DOMAIN:?Set DOMAIN}
+      CORS_ORIGINS: https://${DOMAIN:?Set DOMAIN}
+      MAIL_ENCRYPTION_KEY: ${MAIL_ENCRYPTION_KEY:?Set a 32-byte hexadecimal key}
+      PRIVACY_POLICY_FILE: /srv/legal/privacy.md
+      TERMS_FILE: /srv/legal/terms.md
+      NUTRITRACK_CLINIC_ADMIN_ENABLED: "false"
+    volumes:
+      - clinical_data:/srv/data
+      - ./legal:/srv/legal:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 768m
+    restart: unless-stopped
+  mail:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    command: [node, apps/api/src/mail-worker.js]
+    environment:
+      NODE_ENV: production
+      DATA_DIR: /srv/data
+      MAIL_ENCRYPTION_KEY: ${MAIL_ENCRYPTION_KEY:?Set a 32-byte hexadecimal key}
+      SMTP_HOST: ${SMTP_HOST:?Configure an authorized SMTP relay}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:?Set MAIL_FROM}
+      MAIL_HEARTBEAT_FILE: /tmp/mail-heartbeat
+    volumes: [clinical_data:/srv/data]
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    healthcheck:
+      test: [CMD, node, -e, "const f=require('fs');process.exit(Date.now()-f.statSync('/tmp/mail-heartbeat').mtimeMs<60000?0:1)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+    restart: unless-stopped
+  ingress:
+    image: caddy:2-alpine
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN}
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./infra/Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificates:/data
+      - caddy_config:/config
+    depends_on:
+      app:
+        condition: service_healthy
+    restart: unless-stopped
+volumes:
+  clinical_data:
+  certificates:
+  caddy_config:

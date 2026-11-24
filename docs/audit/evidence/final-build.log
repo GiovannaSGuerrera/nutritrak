@@ -1,0 +1,2 @@
+$ node scripts/check.cjs
+Node/web syntax build checks passed

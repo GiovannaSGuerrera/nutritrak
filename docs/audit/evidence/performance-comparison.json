@@ -1,0 +1,51 @@
+{
+  "scope": "Synthetic goals screen; local HTTP; no production capacity claim",
+  "before": {
+    "backend": "json",
+    "patients": 100,
+    "goals": 100,
+    "registeredUsers": 1,
+    "concurrentSessions": 1,
+    "samples": 7,
+    "concurrentScreenRequests": 8,
+    "concurrentScreenMedianMs": 187.5,
+    "concurrentScreenMaxMs": 187.6,
+    "concurrentWallMs": 188.9,
+    "requestsPerScreen": 101,
+    "medianMs": 40.77,
+    "maxMs": 70.94,
+    "allSamplesMs": [
+      31.92,
+      40.04,
+      40.13,
+      40.77,
+      44.5,
+      45.08,
+      70.94
+    ]
+  },
+  "after": {
+    "backend": "sqlite",
+    "patients": 100,
+    "goals": 100,
+    "registeredUsers": 1,
+    "concurrentSessions": 1,
+    "samples": 7,
+    "concurrentScreenRequests": 8,
+    "concurrentScreenMedianMs": 22.09,
+    "concurrentScreenMaxMs": 32.99,
+    "concurrentWallMs": 33.67,
+    "requestsPerScreen": 1,
+    "medianMs": 4.36,
+    "maxMs": 6.02,
+    "allSamplesMs": [
+      4.15,
+      4.18,
+      4.26,
+      4.36,
+      4.63,
+      4.93,
+      6.02
+    ]
+  }
+}

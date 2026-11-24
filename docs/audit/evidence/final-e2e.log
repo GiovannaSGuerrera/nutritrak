@@ -1,0 +1,10 @@
+$ playwright test
+
+Running 2 tests using 1 worker
+
+(node:11748) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
+(Use `node --trace-warnings ...` to show where the warning was created)
+  ok 1 apps\web\e2e\flows.spec.cjs:53:3 › onboarding, patient form, goals and account controls 1440px (2.2s)
+  ok 2 apps\web\e2e\flows.spec.cjs:53:3 › onboarding, patient form, goals and account controls 390px (2.7s)
+
+  2 passed (5.8s)

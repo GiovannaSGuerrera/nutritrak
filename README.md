@@ -1,5 +1,16 @@
 # NutriTrack
 
+## Preparação de produção — branch hardening/production-readiness
+
+A API Node continua sendo o backend principal, preservando os fluxos individuais e de equipe. O perfil de produção usa `STORE_BACKEND=sqlite`, WAL, transações, sessões persistidas, controle de origem e confirmação de e-mail. Requer Node 24.15+. JSON permanece somente para desenvolvimento/importação; a API Python continua alternativa em migração e não é o destino do cutover comercial.
+
+Consulte [o guia de implantação](docs/audit/PRODUCTION_DEPLOYMENT_GUIDE.md), [as ações externas obrigatórias](docs/audit/MANUAL_ACTIONS_REQUIRED.md) e [a avaliação final](docs/audit/FINAL_PRODUCTION_READINESS_REPORT.md). Nenhum deploy foi realizado e os gates de infraestrutura/privacidade externos continuam necessários antes de clientes reais.
+
+Checks locais: `pnpm lint`, `pnpm typecheck`, `pnpm build`, `pnpm test`, `pnpm test:e2e`. A verificação de tipos é estrita nos novos módulos de segurança/persistência; o legado não foi convertido integralmente para TypeScript.
+
+O perfil SQLite admite uma instância da API com volume local persistente. Não use armazenamento de rede nem escale réplicas sem uma nova validação arquitetural/carga. Backups são executados por `pnpm storage`; e-mails usam fila criptografada e `pnpm mail:worker` com relay SMTP autorizado. Configurar chaves, documentos legais e relay está descrito no guia; não existem credenciais privadas no exemplo.
+
+
 ## API Python (migração em andamento)
 
 Há uma implementação FastAPI/SQLAlchemy/PostgreSQL inicial em `apps/api-python`. Ela inclui cadastro/login profissional, cookies de sessão persistidos, pacientes e atribuições, avaliações, agenda, metas, planos alimentares com publicação, convites e autenticação básica do portal. A interface continua HTML/CSS/JavaScript e aceita a configuração da URL da API em `apps/web/public/config.js`.
@@ -38,24 +49,24 @@ docker compose exec -T db pg_dump -U nutritrack -Fc nutritrack > nutritrack.dump
 Restaure em um banco novo e vazio, após verificar o arquivo e a versão do schema:
 
 ```sh
-docker compose exec -T db pg_restore -U nutritrack -d nutritrack --clean --if-exists < nutritrack.dump
+docker compose exec -T db pg_restore -U nutritrack -d NOVO_BANCO_VAZIO < nutritrack.dump
 ```
 
 Não use `--clean` contra a base ativa. Em hospedagem, use o mecanismo de backup do provedor, teste restauração em uma base isolada e documente RPO/RTO antes do corte.
 
-NutriTrack é uma plataforma em desenvolvimento para apoiar nutricionistas no acompanhamento de pacientes. O objetivo é evoluir, em etapas compreensíveis e testáveis, de uma base funcional para um produto com aplicações web e móveis e uma API central.
+NutriTrack é uma plataforma em desenvolvimento para nutricionistas que atendem individualmente. O produto comercial será direcionado a nutricionistas, com um espaço profissional próprio para acompanhar pacientes, consultas, avaliações, metas e planos alimentares. A implementação de clínica permanece disponível por feature flag para desenvolvimento e validação.
 
 ## Estado atual
 
-O primeiro passo estrutural separou servidor/API e interface web em workspaces pnpm, preservando a implementação existente. O código de runtime continua em JavaScript e usa apenas APIs nativas do Node.js. Prettier é uma dependência de desenvolvimento usada para manter a formatação consistente.
+O primeiro passo estrutural separou servidor/API e interface web em workspaces pnpm, preservando a implementação existente. O runtime principal continua em JavaScript/Node, com SQLite nativo e Nodemailer para SMTP. ESLint, Prettier, TypeScript, Playwright e Axe são ferramentas de desenvolvimento/validação.
 
 **Implementado:** cadastro/login profissional, pacientes e perfis, avaliações antropométricas parciais, cálculos de IMC e composição estimada, agenda com detecção de conflitos, metas, dashboard com dados persistidos, rascunhos e versionamento de planos alimentares, publicação profissional com validações e portal separado do paciente. O portal usa convite de uso único e mostra somente versões publicadas. O profissional também pode gerar um link manual de redefinição de senha para a paciente; esse link expira em 24 horas e só pode ser usado uma vez.
 
-**Ainda não implementado:** PostgreSQL/Prisma, API NestJS, frontend Next.js, apps Expo, consultas clínicas completas, recuperação automática por e-mail, limitação de tentativas, notificações de novas publicações, relatórios exportáveis e preparação para produção. Não use dados reais de saúde nesta versão.
+**Fora do escopo atual:** Prisma/NestJS/Next.js/Expo, consultas clínicas completas, notificações de novas publicações e cobrança automática. Recuperação profissional por e-mail, limites de tentativas e exportações técnicas foram implementados; entrega SMTP real e prontidão operacional/privacidade continuam pendentes. Não use dados reais de saúde antes de resolver os gates dos relatórios finais.
 
 ## Requisitos e execução
 
-Requer Node.js 20 ou superior e pnpm 11.25 ou compatível com `packageManager`.
+Requer Node.js 24.15 ou superior e pnpm 11.25 ou compatível com `packageManager`.
 
 ```sh
 pnpm install
@@ -95,10 +106,10 @@ A API ainda serve os arquivos estáticos da web. A separação em pastas é um l
 
 A API exige membership ativo no workspace selecionado e aplica papéis e atribuições clínicas por paciente. Após cadastro, uma etapa anterior ao painel pergunta se a pessoa criará consultório próprio (com nome e escolha de papel clínico) ou entrará por convite; só a proprietária recebe gestão do workspace. Contas antigas precisam confirmar uma migração explícita com backup local. Convites de equipe e do portal são links de uso único compartilhados manualmente; não há envio automático por e-mail. Senhas são derivadas por scrypt; cookies são HttpOnly/SameSite e as sessões expiram no servidor após oito horas.
 
-O modo publicado está temporariamente limitado ao espaço individual de nutricionistas. A seleção de perfis, gestão de clínica/equipe e rotas administrativas ficam desativadas no frontend e na API, sem remover sua implementação nem os dados associados. Em produção, a flag `NUTRITRACK_CLINIC_ADMIN_ENABLED` é desativada por padrão; para reativar a experiência administrativa de forma coordenada, configure-a como `true` na API e no servidor web. Fora de produção, o modo administrativo existente continua habilitado por padrão e pode ser desativado com `NUTRITRACK_CLINIC_ADMIN_ENABLED=false`.
+O modo publicado atende nutricionistas individualmente. A seleção de perfis, gestão de clínica/equipe e rotas administrativas ficam desativadas no frontend e na API, sem remover sua implementação nem os dados associados. Em produção, a flag `NUTRITRACK_CLINIC_ADMIN_ENABLED` é desativada por padrão; para reativar a experiência administrativa de forma coordenada, configure-a como `true` na API e no servidor web. Fora de produção, o modo administrativo existente continua habilitado por padrão e pode ser desativado com `NUTRITRACK_CLINIC_ADMIN_ENABLED=false`.
 
-Store JSON e sessões em memória são somente para desenvolvimento de uma instância; não há garantias de concorrência, disponibilidade, recuperação ou retenção apropriada. Também faltam rate limiting, MFA, armazenamento compartilhado de sessão, banco relacional e revisão profissional de segurança/privacidade. O projeto não declara conformidade automática com a LGPD nem prontidão para dados clínicos reais. Consulte [o estado da implementação multi-tenant](docs/MVP_IMPLEMENTATION_STATUS.md) e a arquitetura antes de ampliar o uso.
+Store JSON e sessões em memória são somente para desenvolvimento. Produção exige SQLite transacional com sessões duráveis; rate limiting e MFA foram adicionados. Operação real, revisão jurídica/privacidade, TLS, SMTP e backups externos ainda precisam homologação. O projeto não declara conformidade automática com a LGPD nem prontidão para dados clínicos reais. Consulte [o estado da implementação multi-tenant](docs/MVP_IMPLEMENTATION_STATUS.md) e a arquitetura antes de ampliar o uso.
 
 ## Aprendizado
 
-Fluxo atual: navegador chama endpoints HTTP no mesmo servidor; o servidor identifica a conta pelo cookie, valida o membership e o workspace ativo, checa papel/atribuição quando a operação é clínica, atualiza o arquivo JSON e devolve uma projeção compatível com o papel. A suíte de integração cobre cadastro e fluxos anteriores, convite/aceite de equipe, atribuição, assistente sem prontuário, isolamento entre workspaces e conflito de agenda. A documentação de diagnóstico e o ADR explicam a evolução incremental e suas consequências.
+Fluxo atual: navegador chama endpoints HTTP no mesmo servidor; o servidor identifica a conta pelo cookie, valida o membership e o workspace ativo, checa papel/atribuição quando a operação é clínica, grava a transação SQLite (ou JSON somente em desenvolvimento) e devolve uma projeção compatível com o papel. A suíte de integração cobre cadastro e fluxos anteriores, convite/aceite de equipe, atribuição, assistente sem prontuário, isolamento entre workspaces e conflito de agenda. A documentação de diagnóstico e o ADR explicam a evolução incremental e suas consequências.

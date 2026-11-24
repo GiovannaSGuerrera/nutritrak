@@ -1,0 +1,14 @@
+.git
+node_modules
+.venv
+.hardening-*
+.env
+.env.*
+data
+docs
+test-results
+playwright-report
+**/.runtime-*
+**/test-data*
+**/__pycache__
+*.log

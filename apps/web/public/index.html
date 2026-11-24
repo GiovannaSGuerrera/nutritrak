@@ -7,7 +7,9 @@
     <title>NutriTrack — acompanhamento nutricional</title>
     <link rel="stylesheet" href="/styles.css?v=20261029-3" />
     <script src="/config.js" defer></script>
-    <script src="/app.js?v=20261031-1" defer></script>
+    <script src="/app.js?v=20261105-1" defer></script>
+    <script src="/account.js" defer></script>
+    <script src="/legal.js" defer></script>
     <script src="/portal.js?v=20261030-1" defer></script>
   </head>
   <body>
@@ -18,7 +20,9 @@
       <section class="auth-card">
         <p class="eyebrow">NUTRITRACK</p>
         <h1 id="auth-title">Entre na sua conta</h1>
-        <p class="muted" id="auth-subtitle">Acesse seus pacientes e atendimentos.</p>
+        <p class="muted" id="auth-subtitle">
+          Organize pacientes, consultas, avaliações e planos alimentares.
+        </p>
         <p class="runtime-notice" id="runtime-notice" hidden>
           Para usar o NutriTrack, inicie o servidor na pasta do projeto com <code>pnpm dev</code> e
           abra <code>http://localhost:3000</code>.
@@ -48,6 +52,12 @@
               autocomplete="current-password"
               placeholder="Pelo menos 12 caracteres"
           /></label>
+          <label
+            >Código de segundo fator ou recuperação (se ativado)<input
+              id="auth-mfa"
+              autocomplete="one-time-code"
+              maxlength="20"
+          /></label>
           <input id="auth-profile-type" type="hidden" value="nutritionist" />
           <p class="invite-registration-note" id="auth-invite-notice" hidden>
             Você recebeu um convite. Depois de entrar, terá os acessos definidos pela responsável
@@ -59,8 +69,12 @@
           <span id="auth-toggle-label">Ainda não tem uma conta?</span>
           <button class="link-button" id="auth-toggle">Criar conta</button>
         </p>
+        <p class="auth-toggle">
+          <button class="link-button" id="forgot-password">Esqueci minha senha</button>
+        </p>
         <p class="auth-toggle"><a href="/paciente">Acessar portal do paciente</a></p>
         <p class="form-error" id="auth-error"></p>
+        <p><a href="/privacy">Privacidade</a> · <a href="/terms">Termos de uso</a></p>
         <p class="auth-note">
           Dados persistidos localmente para desenvolvimento. Use dados fictícios neste ambiente.
         </p>
@@ -89,6 +103,9 @@
           ><span>Seus pacientes ficam isolados da conta de outros profissionais.</span>
         </div>
         <div class="sidebar-bottom">
+          <button class="button subtle" id="security-account" hidden>
+            Segurança e privacidade
+          </button>
           <div class="user-chip">
             <div class="avatar" id="user-avatar">N</div>
             <div class="user-copy">
