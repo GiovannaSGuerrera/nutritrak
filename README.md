@@ -34,6 +34,8 @@ As proteções e pendências estão registradas no [guia de operação](docs/sec
 
 ## Para quem quer mexer no código
 
+O [manual de SQL](docs/development/manual-sql.md) explica as tabelas e traz exemplos para consultar pacientes, avaliações, agenda e planos alimentares.
+
 As instruções para rodar uma cópia local, configurar o banco e executar os testes estão abaixo.
 
 <details>
