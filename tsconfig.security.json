@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "Node16",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "typeRoots": ["apps/api/node_modules/@types"]
+  },
+  "include": [
+    "apps/api/src/http-safety.ts",
+    "apps/api/src/validation.ts",
+    "apps/api/src/mail.ts",
+    "apps/api/src/totp.ts",
+    "apps/api/src/account-security.ts",
+    "apps/api/src/legal.ts",
+    "apps/api/src/mail-worker.ts",
+    "apps/api/src/migrate.ts"
+  ]
+}

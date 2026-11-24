@@ -1,0 +1,117 @@
+▶ hardening: HTTP, atomicidade, integridade e isolamento
+  ✖ corpo incompleto não bloqueia health (279.3296ms)
+  ✖ PATCH recusado não altera estado (8.7297ms)
+  ✖ contratos rejeitam datas, medidas, status e null (5.3938ms)
+  ✖ edição/publicação exigem revisão atual (7.7075ms)
+  ✖ reativação de consulta revalida conflito (13.5678ms)
+✖ hardening: HTTP, atomicidade, integridade e isolamento (559.6029ms)
+ℹ tests 6
+ℹ suites 0
+ℹ pass 0
+ℹ fail 6
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 643.0393
+
+✖ failing tests:
+
+test at apps\api\test\hardening.test.js:76:11
+✖ corpo incompleto não bloqueia health (279.3296ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  false !== true
+  
+      at TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:79:107)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:76:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\hardening.test.js:81:11
+✖ PATCH recusado não altera estado (8.7297ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  '' !== 'Original'
+  
+      at TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:81:153)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:81:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: 'Original',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\hardening.test.js:82:11
+✖ contratos rejeitam datas, medidas, status e null (5.3938ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  201 !== 400
+  
+      at TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:83:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:82:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 201,
+    expected: 400,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\hardening.test.js:87:11
+✖ edição/publicação exigem revisão atual (7.7075ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 428
+  
+      at TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:90:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:87:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 428,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at apps\api\test\hardening.test.js:96:11
+✖ reativação de consulta revalida conflito (13.5678ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  200 !== 409
+  
+      at TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:101:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\hardening.test.js:96:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 200,
+    expected: 409,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

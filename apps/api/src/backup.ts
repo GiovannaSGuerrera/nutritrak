@@ -66,6 +66,8 @@ export async function restoreEmpty(pool: Pool, backup: ReturnType<typeof decrypt
         record_keys = CASE WHEN 'revokedAt' = ANY(record_keys) THEN record_keys ELSE array_append(record_keys, 'revokedAt') END`,
         [new Date().toISOString()],
       );
+    await client.query('DELETE FROM professional_tokens');
+    await client.query('DELETE FROM mail_outbox');
     await client.query('COMMIT');
   } catch (error) {
     await client.query('ROLLBACK');

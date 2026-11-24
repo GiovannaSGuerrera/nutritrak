@@ -1,0 +1,2 @@
+$ pnpm --filter @nutritrack/api typecheck && node apps/api/node_modules/typescript/bin/tsc -p tsconfig.security.json
+$ tsc -p tsconfig.json --noEmit

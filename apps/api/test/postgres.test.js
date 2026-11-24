@@ -8,6 +8,12 @@ const { createPostgresStore } = require('../dist/postgres-store');
 const { snapshot, encryptBackup, decryptBackup, restoreEmpty } = require('../dist/backup');
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
+if (
+  databaseUrl &&
+  (process.env.TEST_DATABASE_CONFIRM !== 'disposable' ||
+    !new URL(databaseUrl).pathname.endsWith('_test'))
+)
+  throw Error('Explicitly confirm a disposable *_test database.');
 
 test(
   'limite compartilhado, execução sem DDL e restauração criptografada em banco vazio',
@@ -144,6 +150,9 @@ async function isolatedDatabase(run) {
 
 function fixture() {
   return {
+    authTokens: [],
+    mailOutbox: [],
+    privacyRequests: [],
     users: [
       {
         id: 'professional-1',

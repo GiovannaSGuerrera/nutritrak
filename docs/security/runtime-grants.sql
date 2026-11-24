@@ -12,14 +12,16 @@ GRANT USAGE ON SCHEMA public TO nutritrack_runtime, nutritrack_backup;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
   professionals, patients, assessments, appointments, goals, meal_plans,
   meal_plan_versions, patient_accounts, patient_invitations,
-  patient_password_resets, audit_events, auth_sessions, auth_rate_limits
+  patient_password_resets, audit_events, auth_sessions, auth_rate_limits,
+  professional_tokens, mail_outbox, privacy_requests, login_identities
 TO nutritrack_runtime;
 GRANT SELECT ON storage_migrations TO nutritrack_runtime;
 GRANT UPDATE (revision) ON storage_migrations TO nutritrack_runtime;
 GRANT SELECT ON
   storage_migrations, professionals, patients, assessments, appointments,
   goals, meal_plans, meal_plan_versions, patient_accounts,
-  patient_invitations, patient_password_resets, audit_events
+  patient_invitations, patient_password_resets, audit_events,
+  professional_tokens, mail_outbox, privacy_requests, login_identities
 TO nutritrack_backup;
 -- Vincular os grupos a logins dedicados criados pelo titular, sem neon_superuser,
 -- sem propriedade de banco e sem CREATE no schema. Conferir privilégios herdados.

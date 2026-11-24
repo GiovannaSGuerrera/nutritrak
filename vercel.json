@@ -1,9 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": null,
-  "regions": ["gru1"],
+  "regions": [
+    "gru1"
+  ],
   "installCommand": "corepack pnpm install --frozen-lockfile --prod=false",
-  "buildCommand": "node apps/api/node_modules/typescript/bin/tsc -p apps/api/tsconfig.json",
+  "buildCommand": "node scripts/build.cjs",
   "outputDirectory": "apps/web/public",
   "functions": {
     "api/index.js": {
@@ -23,6 +25,14 @@
     {
       "source": "/paciente/:path*",
       "destination": "/index.html"
+    },
+    {
+      "source": "/privacy",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/terms",
+      "destination": "/index.html"
     }
   ],
   "headers": [
@@ -33,14 +43,28 @@
           "key": "X-Content-Type-Options",
           "value": "nosniff"
         },
-        { "key": "Referrer-Policy", "value": "no-referrer" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=()" },
+        {
+          "key": "Referrer-Policy",
+          "value": "no-referrer"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
         {
           "key": "Content-Security-Policy",
           "value": "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'"
         }
       ]
     }
-  ]
+  ],
+  "git": {
+    "deploymentEnabled": {
+      "hardening/production-readiness-main": false
+    }
+  }
 }

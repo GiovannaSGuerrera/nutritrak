@@ -1,0 +1,37 @@
+{
+  "scope": "Synthetic PostgreSQL local;10 professionals,100 patients+100 goals each;one logged-in user/session;not a capacity/SLO claim",
+  "before": {
+    "samplesMs": [
+      1759.94,
+      1789.87,
+      1796.61,
+      1825.98,
+      1826.51,
+      1832.17,
+      1871.67
+    ],
+    "medianMs": 1825.98,
+    "maxMs": 1871.67,
+    "requestsPerScreen": 101,
+    "concurrentOpenings": 4,
+    "concurrentMedianMs": 6893.22,
+    "concurrentMaxMs": 6918.11
+  },
+  "after": {
+    "samplesMs": [
+      9.34,
+      9.89,
+      10.31,
+      10.43,
+      10.6,
+      10.94,
+      13.45
+    ],
+    "medianMs": 10.43,
+    "maxMs": 13.45,
+    "requestsPerScreen": 1,
+    "concurrentOpenings": 4,
+    "concurrentMedianMs": 26.65,
+    "concurrentMaxMs": 40.18
+  }
+}

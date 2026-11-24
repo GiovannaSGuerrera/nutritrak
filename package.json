@@ -11,10 +11,21 @@
     "start": "pnpm --filter @nutritrack/api start",
     "test": "pnpm --filter @nutritrack/api test",
     "format": "prettier --write \"apps/**/*.{js,css,html,json}\" \".vscode/**/*.json\" \"*.json\" \"pnpm-workspace.yaml\"",
-    "build": "pnpm --filter @nutritrack/api build",
-    "typecheck": "pnpm --filter @nutritrack/api typecheck"
+    "build": "node scripts/build.cjs",
+    "typecheck": "pnpm --filter @nutritrack/api typecheck && node apps/api/node_modules/typescript/bin/tsc -p tsconfig.security.json",
+    "lint": "eslint apps api scripts && prettier --check \"apps/api/src/*.{ts,js}\" \"apps/api/test/*.js\" \"apps/web/public/*.{js,html,css}\"",
+    "test:e2e": "playwright test",
+    "test:ci": "node scripts/require-test-db.cjs && pnpm test",
+    "mail:worker": "pnpm build && node apps/api/dist/mail-worker.js --once",
+    "db:migrate": "pnpm build && node apps/api/dist/migrate.js"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.65.1",
+    "@typescript-eslint/parser": "^8.73.0",
+    "eslint": "10.15.0",
+    "globals": "17.14.0",
     "prettier": "^3.9.10"
   }
 }

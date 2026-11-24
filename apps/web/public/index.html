@@ -8,14 +8,16 @@
     <link rel="stylesheet" href="/styles.css?v=20261112-1" />
     <script src="/app.js?v=20261112-1" defer></script>
     <script src="/portal.js?v=20261112-1" defer></script>
+    <script src="/account.js" defer></script>
+    <script src="/legal.js" defer></script>
   </head>
   <body>
     <div id="auth" class="auth-shell">
       <div class="auth-intro">
-      <div class="auth-brand">
-        <span class="brand-mark" aria-hidden="true">♧</span><span>NutriTrack</span>
-      </div>
-      <p class="auth-intro-title">Acompanhamento<br />nutricional</p>
+        <div class="auth-brand">
+          <span class="brand-mark" aria-hidden="true">♧</span><span>NutriTrack</span>
+        </div>
+        <p class="auth-intro-title">Acompanhamento<br />nutricional</p>
         <p>Pacientes, avaliações e planos alimentares em um só lugar.</p>
       </div>
       <section class="auth-card">
@@ -29,14 +31,17 @@
         <form id="auth-form">
           <label id="auth-name-field" hidden
             >Seu nome<input
-              id="auth-name" name="name"
+              id="auth-name"
+              name="name"
               autocomplete="name"
               placeholder="Nome profissional"
               hidden
           /></label>
           <label
             >E-mail<input
-              id="auth-email" name="email" spellcheck="false"
+              id="auth-email"
+              name="email"
+              spellcheck="false"
               type="email"
               required
               autocomplete="email"
@@ -44,12 +49,22 @@
           /></label>
           <label
             >Senha<input
-              id="auth-password" name="password"
+              id="auth-password"
+              name="password"
               type="password"
               required
               minlength="12"
               autocomplete="current-password"
               placeholder="Pelo menos 12 caracteres"
+          /></label>
+          <label
+            >Código do autenticador (se ativo)<input
+              id="auth-mfa"
+              inputmode="numeric"
+              autocomplete="one-time-code"
+              maxlength="6" /></label
+          ><label
+            >Código de recuperação (alternativo)<input id="auth-recovery" autocomplete="off"
           /></label>
           <button class="button primary full" id="auth-submit">Entrar</button>
         </form>
@@ -57,6 +72,12 @@
           <span id="auth-toggle-label">Ainda não tem uma conta?</span>
           <button class="link-button" id="auth-toggle">Criar conta</button>
         </p>
+        <p class="auth-toggle">
+          <button class="link-button" id="forgot-password" type="button">
+            Esqueci minha senha
+          </button>
+        </p>
+        <p class="auth-toggle"><a href="/privacy">Privacidade</a> · <a href="/terms">Termos</a></p>
         <p class="auth-toggle"><a href="/paciente">Acessar portal do paciente</a></p>
         <p class="form-error" id="auth-error" role="alert"></p>
         <p class="auth-note">
@@ -65,6 +86,10 @@
       </section>
     </div>
 
+    <aside id="verification-notice" hidden>
+      Confirme seu e-mail para usar os dados clínicos.
+      <button class="button" id="resend-verification">Reenviar confirmação</button>
+    </aside>
     <main id="patient-portal" class="patient-portal" hidden></main>
 
     <div id="app" class="app-shell" hidden>
@@ -90,12 +115,15 @@
           <button class="nav-item" data-page="agenda">
             <span class="nav-icon" aria-hidden="true">▦</span> Agenda
           </button>
-          <button class="nav-item" data-page="goals"><span class="nav-icon" aria-hidden="true">◎</span> Metas</button>
+          <button class="nav-item" data-page="goals">
+            <span class="nav-icon" aria-hidden="true">◎</span> Metas
+          </button>
         </nav>
         <div class="privacy-card">
           <strong><i></i> Dados privados</strong
           ><span>Seus pacientes ficam isolados da conta de outros profissionais.</span>
         </div>
+        <button class="button" id="security-account" hidden>Segurança e privacidade</button>
         <div class="sidebar-bottom">
           <div class="user-chip">
             <div class="avatar" id="user-avatar">N</div>
@@ -121,7 +149,8 @@
             class="mobile-menu"
             id="mobile-menu"
             aria-label="Abrir menu"
-            aria-expanded="false" aria-controls="sidebar"
+            aria-expanded="false"
+            aria-controls="sidebar"
           >
             ☰
           </button>

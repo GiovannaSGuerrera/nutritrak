@@ -8,7 +8,7 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "start": "pnpm build && node dist/server.js",
     "dev": "pnpm build && node --watch dist/server.js",
-    "test": "pnpm build && node --test",
+    "test": "pnpm build && node scripts/run-tests.cjs",
     "dev:build": "tsc -p tsconfig.json --watch",
     "test:postgres": "pnpm build && node --test test/postgres.test.js"
   },
@@ -16,10 +16,12 @@
     "node": ">=20"
   },
   "dependencies": {
+    "nodemailer": "10.6.1",
     "pg": "^8.23.1"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
+    "@types/nodemailer": "8.0.2",
     "@types/pg": "^8.23.1",
     "typescript": "^7.0.2"
   }

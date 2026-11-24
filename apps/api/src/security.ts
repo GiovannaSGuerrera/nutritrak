@@ -14,6 +14,8 @@ export function validateMutation(req: IncomingMessage) {
   if (req.headers['sec-fetch-site'] === 'cross-site')
     throw securityError(403, 'Origem da requisição não permitida.');
   const origin = req.headers.origin;
+  if (process.env.NODE_ENV === 'production' && !origin)
+    throw securityError(403, 'Informe a origem da requisição.');
   if (origin) {
     const configured = process.env.APP_ORIGIN;
     const expected =
@@ -27,6 +29,14 @@ export function validateMutation(req: IncomingMessage) {
 
 export function authRoute(pathname: string) {
   return [
+    '/api/auth/password-reset/request',
+    '/api/auth/password-reset/complete',
+    '/api/auth/verification/complete',
+    '/api/auth/verification/request',
+    '/api/account/password',
+    '/api/account/mfa/setup',
+    '/api/account/mfa/confirm',
+    '/api/account/mfa/disable',
     '/api/login',
     '/api/register',
     '/api/patient/login',
@@ -48,12 +58,12 @@ export function authBucket(req: IncomingMessage) {
   return crypto.createHash('sha256').update(`auth:${address}`).digest('hex');
 }
 
-export function consumeLocalAttempt(key: string, now = Date.now()) {
+export function consumeLocalAttempt(key: string, now = Date.now(), limit = AUTH_LIMIT) {
   for (const [id, value] of buckets) if (value.expires <= now) buckets.delete(id);
   const bucket = buckets.get(key) || { count: 0, expires: now + AUTH_WINDOW_SECONDS * 1000 };
   bucket.count++;
   buckets.set(key, bucket);
-  return bucket.count <= AUTH_LIMIT;
+  return bucket.count <= limit;
 }
 
 export function securityLog(

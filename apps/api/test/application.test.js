@@ -2,7 +2,6 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { spawn } = require('node:child_process');
 const fs = require('node:fs/promises');
-const os = require('node:os');
 const path = require('node:path');
 const net = require('node:net');
 
@@ -108,7 +107,7 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   const blockedPublish = await call(
     `/api/meal-plans/${planDraft.body.mealPlan.id}/publish`,
     'POST',
-    {},
+    { expectedRevision: 0 },
     token,
   );
   assert.equal(blockedPublish.status, 400);
@@ -117,6 +116,7 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     'PUT',
     {
       name: 'Plano de demonstração',
+      expectedRevision: 0,
       objective: 'Acompanhamento individual',
       meals: [{ name: 'Café da manhã', items: [{ food: 'Aveia', quantity: 40, unit: 'g' }] }],
     },
@@ -127,7 +127,7 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
   const published = await call(
     `/api/meal-plans/${planDraft.body.mealPlan.id}/publish`,
     'POST',
-    {},
+    { expectedRevision: 1 },
     token,
   );
   assert.equal(published.status, 200);
@@ -137,6 +137,7 @@ test('autenticação, cadastro, avaliação, isolamento e conflito de agenda', a
     'PUT',
     {
       name: 'Plano de demonstração',
+      expectedRevision: 2,
       objective: 'Revisão',
       meals: [{ name: 'Lanche', items: [{ food: 'Iogurte natural', quantity: 1, unit: 'pote' }] }],
     },

@@ -1,3 +1,9 @@
+import { accountRoutes, issueToken } from './account-security';
+import * as totp from './totp';
+import { readPolicy } from './legal';
+import type { AccountContext, Store, User } from './contracts';
+import { readBody, bufferedResponse } from './http-safety';
+import { object, dateOnly, patientFields, pageList, revision } from './validation';
 import * as http from 'node:http';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
@@ -29,6 +35,7 @@ const STORE = path.join(DATA_DIR, 'store.json');
 const PORT = Number(process.env.PORT || 3000);
 const postgres = process.env.DATABASE_URL ? createPostgresStore(process.env.DATABASE_URL) : null;
 const sessions = new Map<string, string>();
+const localSessionExpiry = new Map<string, number>();
 const patientSessions = new Map<string, string>();
 const MIME: Record<string, string> = {
   '.html': 'text/html; charset=utf-8',
@@ -48,6 +55,10 @@ const emptyStore = {
   patientPasswordResets: [],
   patientAccounts: [],
   audit: [],
+  authTokens: [],
+  mailOutbox: [],
+  privacyRequests: [],
+  memberships: [],
 };
 let store = structuredClone(emptyStore);
 let writeQueue = Promise.resolve();
@@ -70,8 +81,19 @@ async function readLegacyStore() {
 }
 
 async function loadStore() {
+  if (process.env.NODE_ENV === 'production') {
+    if (
+      !process.env.APP_ORIGIN ||
+      new URL(process.env.APP_ORIGIN).protocol !== 'https:' ||
+      !/^[a-f\d]{64}$/i.test(process.env.MAIL_ENCRYPTION_KEY || '')
+    )
+      throw new Error('Configure APP_ORIGIN HTTPS e MAIL_ENCRYPTION_KEY.');
+    if (process.env.DB_AUTO_MIGRATE !== 'false' || !process.env.SMTP_HOST || !process.env.MAIL_FROM)
+      throw new Error('Produção requer migração explícita e SMTP configurado.');
+    await Promise.all([readPolicy('privacy'), readPolicy('terms')]);
+  }
   if (postgres) {
-    store = normalizeStore(await postgres.initialize(readLegacyStore));
+    store = normalizeStore(await postgres.initialize(readLegacyStore, '__anonymous__'));
     return;
   }
   if (process.env.NODE_ENV === 'production')
@@ -94,6 +116,15 @@ function persist() {
 }
 
 function json(res: http.ServerResponse, status: number, body: unknown) {
+  const paging = (res as http.ServerResponse & { pageUrl?: URL }).pageUrl;
+  if (status === 200 && paging && object(body) && Object.keys(body).length === 1) {
+    const k = Object.keys(body)[0];
+    if (
+      ['patients', 'assessments', 'appointments', 'goals', 'mealPlans'].includes(k) &&
+      Array.isArray(body[k])
+    )
+      body = pageList(k, body[k], paging);
+  }
   res.writeHead(status, {
     'content-type': 'application/json; charset=utf-8',
     'cache-control': 'no-store',
@@ -101,37 +132,8 @@ function json(res: http.ServerResponse, status: number, body: unknown) {
   });
   res.end(JSON.stringify(body));
 }
-async function body(req) {
-  // Vercel may parse JSON before invoking the Node handler.
-  if (req.body !== undefined) {
-    const parsed =
-      typeof req.body === 'string' || Buffer.isBuffer(req.body)
-        ? String(req.body)
-        : JSON.stringify(req.body);
-    if (Buffer.byteLength(parsed) > 1_000_000)
-      throw Object.assign(new Error('Corpo muito grande'), { status: 413 });
-    try {
-      const value = JSON.parse(parsed);
-      if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
-      return value;
-    } catch {
-      throw Object.assign(new Error('JSON inválido'), { status: 400 });
-    }
-  }
-  let raw = '';
-  for await (const chunk of req) {
-    raw += chunk;
-    if (raw.length > 1_000_000)
-      throw Object.assign(new Error('Corpo muito grande'), { status: 413 });
-  }
-  try {
-    const value = raw ? JSON.parse(raw) : {};
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error();
-    return value;
-  } catch {
-    throw Object.assign(new Error('JSON inválido'), { status: 400 });
-  }
-}
+const body = readBody;
+
 function cookie(req, name) {
   return (req.headers.cookie || '')
     .split(';')
@@ -141,6 +143,8 @@ function cookie(req, name) {
 }
 async function userFor(req) {
   const token = cookie(req, 'nc_session');
+  if (!postgres && token && (localSessionExpiry.get(token) || 0) <= Date.now())
+    sessions.delete(token);
   const id =
     token &&
     (postgres ? await postgres.getSession(tokenHash(token), 'professional') : sessions.get(token));
@@ -148,6 +152,8 @@ async function userFor(req) {
 }
 async function patientAccountFor(req) {
   const token = cookie(req, 'nt_patient_session');
+  if (!postgres && token && (localSessionExpiry.get(token) || 0) <= Date.now())
+    patientSessions.delete(token);
   const id =
     token &&
     (postgres
@@ -214,9 +220,17 @@ function safePatientPortal(account) {
   };
 }
 function safeUser(u) {
-  return { id: u.id, name: u.name, email: u.email };
+  return {
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    emailVerified: !!u.emailVerified,
+    mfaEnabled: !!u.mfaSecret,
+    securityFeatures: true,
+    verificationRequired: process.env.NODE_ENV === 'production',
+  };
 }
-function validText(v, max = 5000) {
+function validText(v: unknown, max = 5000): v is string {
   return typeof v === 'string' && v.trim().length > 0 && v.length <= max;
 }
 function owned(list, id, userId) {
@@ -231,7 +245,8 @@ function audit(userId, action, type, recordId) {
     recordId,
     at: new Date().toISOString(),
   });
-  store.audit = store.audit.slice(0, 500);
+  const cutoff = Date.now() - Number(process.env.AUDIT_RETENTION_DAYS || 90) * 86400000;
+  store.audit = store.audit.filter((row) => Date.parse(row.at) >= cutoff);
 }
 function compareAssessmentsNewestFirst(a, b) {
   return (
@@ -240,17 +255,27 @@ function compareAssessmentsNewestFirst(a, b) {
   );
 }
 function mealPlanVersion(input, number) {
+  if (!object(input) || !dateOnly(input.startDate) || !dateOnly(input.reviewDate))
+    return { error: 'Datas do plano inválidas.' };
   if (!validText(input.name, 120)) return { error: 'Informe o nome do plano.' };
   if (!Array.isArray(input.meals) || input.meals.length > 12)
     return { error: 'O plano pode conter até 12 refeições.' };
   const meals = [];
   for (const meal of input.meals) {
+    if (!object(meal)) return { error: 'Refeição inválida.' };
     if (!validText(meal.name, 100)) return { error: 'Cada refeição precisa de um nome.' };
     if (!Array.isArray(meal.items) || meal.items.length > 40)
       return { error: 'Cada refeição pode conter até 40 itens.' };
     const items = [];
     for (const item of meal.items) {
+      if (!object(item)) return { error: 'Alimento inválido.' };
       if (!validText(item.food, 180)) return { error: 'Informe o nome de cada alimento.' };
+      if (
+        item.quantity != null &&
+        item.quantity !== '' &&
+        !['string', 'number'].includes(typeof item.quantity)
+      )
+        return { error: 'Quantidade inválida.' };
       const quantity = item.quantity === '' || item.quantity == null ? null : Number(item.quantity);
       if (quantity !== null && (!Number.isFinite(quantity) || quantity <= 0 || quantity > 100000))
         return { error: 'A quantidade deve ser um número positivo.' };
@@ -296,6 +321,32 @@ function canPublish(version) {
 }
 async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   const url = new URL(req.url, 'http://localhost');
+  if (!url.pathname.startsWith('/api/')) {
+    if (!['GET', 'HEAD'].includes(req.method || 'GET'))
+      return json(res, 405, { error: 'Método não permitido.' });
+    return serveStatic(url.pathname, res);
+  }
+  if (req.method === 'GET' && ['/api/legal/privacy', '/api/legal/terms'].includes(url.pathname))
+    return json(res, 200, await readPolicy(url.pathname.endsWith('privacy') ? 'privacy' : 'terms'));
+  if (
+    await accountRoutes({
+      req,
+      res,
+      store: store as unknown as Store,
+      user: await userFor(req),
+      body,
+      json,
+      persist,
+      audit,
+      sessions: {
+        async revoke(userId) {
+          if (postgres) await postgres.revokeProfessionalSessions(userId);
+          for (const [token, id] of sessions) if (id === userId) sessions.delete(token);
+        },
+      },
+    } as AccountContext)
+  )
+    return;
   if (req.method === 'GET' && url.pathname === '/api/me') {
     const u = await userFor(req);
     return u
@@ -399,7 +450,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const session = crypto.randomBytes(32).toString('hex');
     if (postgres)
       await postgres.createSession(tokenHash(session), 'patient', account.id, account.hash);
-    else patientSessions.set(session, account.id);
+    else {
+      patientSessions.set(session, account.id);
+      localSessionExpiry.set(session, Date.now() + 28800000);
+    }
     setSessionCookie(res, 'nt_patient_session', session, 28800);
     return json(res, 201, { portal: safePatientPortal(account) });
   }
@@ -409,6 +463,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       .trim()
       .toLowerCase();
     const account = store.patientAccounts.find((a) => a.email === email);
+    if (!account && typeof b.password === 'string' && b.password.length <= 200)
+      await scrypt(b.password, '0'.repeat(32), 64);
     if (
       !account ||
       typeof b.password !== 'string' ||
@@ -427,7 +483,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const session = crypto.randomBytes(32).toString('hex');
     if (postgres)
       await postgres.createSession(tokenHash(session), 'patient', account.id, account.hash);
-    else patientSessions.set(session, account.id);
+    else {
+      patientSessions.set(session, account.id);
+      localSessionExpiry.set(session, Date.now() + 28800000);
+    }
     setSessionCookie(res, 'nt_patient_session', session, 28800);
     return json(res, 200, { portal });
   }
@@ -493,6 +552,13 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     setSessionCookie(res, 'nt_patient_session', '', 0);
     return json(res, 200, { ok: true });
   }
+  if (req.method === 'GET' && url.pathname === '/api/patient/export') {
+    const account = await patientAccountFor(req);
+    const portal = account && safePatientPortal(account);
+    return portal
+      ? json(res, 200, { exportedAt: new Date().toISOString(), portal })
+      : json(res, 401, { error: 'Entre no portal.' });
+  }
   if (req.method === 'GET' && url.pathname === '/api/patient/me') {
     const account = await patientAccountFor(req);
     if (!account) return json(res, 401, { error: 'Entre no portal do paciente.' });
@@ -509,6 +575,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       .trim()
       .toLowerCase();
     if (
+      email.length > 254 ||
       !validText(b.name, 120) ||
       !/^\S+@\S+\.\S+$/.test(email) ||
       typeof b.password !== 'string' ||
@@ -521,24 +588,53 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (
       store.users.some((u) => u.email === email) ||
       store.patientAccounts.some((a) => a.email === email)
-    )
+    ) {
+      if (process.env.NODE_ENV === 'production') {
+        const existing = store.users.find((row) => row.email === email);
+        if (existing && !existing.emailVerified) {
+          issueToken(store as unknown as Store, existing as User, 'verify');
+          await persist();
+        }
+        return json(res, 202, { message: 'Se elegível, você receberá as instruções por e-mail.' });
+      }
       return json(res, 409, { error: 'Já existe uma conta com esse e-mail.' });
+    }
     const salt = crypto.randomBytes(16).toString('hex');
     const hash = await scrypt(b.password, salt, 64);
     const u = {
       id: crypto.randomUUID(),
-      name: b.name.trim(),
+      name: String(b.name).trim(),
       email,
       salt,
       hash: hash.toString('hex'),
       createdAt: new Date().toISOString(),
     };
     store.users.push(u);
+    if (process.env.NODE_ENV !== 'production')
+      issueToken(store as unknown as Store, u as User, 'verify');
     audit(u.id, 'account_created', 'user', u.id);
+    if (process.env.NODE_ENV === 'production') {
+      issueToken(store as unknown as Store, u as User, 'verify');
+      await persist();
+      return json(res, 202, { message: 'Se elegível, você receberá as instruções por e-mail.' });
+    }
     await persist();
+    if (!totp.checkSecondFactor(u as User, b))
+      return json(res, 401, { error: 'E-mail, senha ou segundo fator incorretos.' });
+    if ((u as User).mfaSecret) await persist();
     const token = crypto.randomBytes(32).toString('hex');
-    if (postgres) await postgres.createSession(tokenHash(token), 'professional', u.id, u.hash);
-    else sessions.set(token, u.id);
+    if (postgres)
+      await postgres.createSession(
+        tokenHash(token),
+        'professional',
+        u.id,
+        u.hash,
+        (u as User).authVersion || 0,
+      );
+    else {
+      sessions.set(token, u.id);
+      localSessionExpiry.set(token, Date.now() + 28800000);
+    }
     res.setHeader(
       'set-cookie',
       `nc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
@@ -551,6 +647,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       .trim()
       .toLowerCase();
     const u = store.users.find((x) => x.email === email);
+    if (!u && typeof b.password === 'string' && b.password.length <= 200)
+      await scrypt(b.password, '0'.repeat(32), 64);
     if (
       !u ||
       typeof b.password !== 'string' ||
@@ -558,9 +656,22 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       !crypto.timingSafeEqual(await scrypt(b.password, u.salt, 64), Buffer.from(u.hash, 'hex'))
     )
       return json(res, 401, { error: 'E-mail ou senha incorretos.' });
+    if (!totp.checkSecondFactor(u as User, b))
+      return json(res, 401, { error: 'E-mail, senha ou segundo fator incorretos.' });
+    if ((u as User).mfaSecret) await persist();
     const token = crypto.randomBytes(32).toString('hex');
-    if (postgres) await postgres.createSession(tokenHash(token), 'professional', u.id, u.hash);
-    else sessions.set(token, u.id);
+    if (postgres)
+      await postgres.createSession(
+        tokenHash(token),
+        'professional',
+        u.id,
+        u.hash,
+        (u as User).authVersion || 0,
+      );
+    else {
+      sessions.set(token, u.id);
+      localSessionExpiry.set(token, Date.now() + 28800000);
+    }
     res.setHeader(
       'set-cookie',
       `nc_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`,
@@ -569,17 +680,38 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   }
   if (req.method === 'POST' && url.pathname === '/api/logout') {
     const token = cookie(req, 'nc_session');
+    if (!postgres && token && (localSessionExpiry.get(token) || 0) <= Date.now())
+      sessions.delete(token);
     if (token) {
       if (postgres) await postgres.deleteSession(tokenHash(token));
       else sessions.delete(token);
     }
-    res.setHeader('set-cookie', 'nc_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0');
+    setSessionCookie(res, 'nc_session', '', 0);
     return json(res, 200, { ok: true });
   }
-  if (!url.pathname.startsWith('/api/')) return serveStatic(url.pathname, res);
+
   const u = await userFor(req);
   if (!u) return json(res, 401, { error: 'Autenticação necessária' });
+  if (process.env.NODE_ENV === 'production' && !u.emailVerified)
+    return json(res, 403, { error: 'Confirme seu e-mail para acessar os dados clínicos.' });
   const uid = u.id;
+  const exportMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/export$/);
+  if (req.method === 'GET' && exportMatch) {
+    const patient = owned(store.patients, exportMatch[1], uid);
+    if (!patient) return json(res, 404, { error: 'Paciente não encontrado.' });
+    audit(uid, 'clinical_data_exported', 'patient', patient.id);
+    await persist();
+    return json(res, 200, {
+      exportedAt: new Date().toISOString(),
+      patient,
+      assessments: store.assessments.filter((x) => x.userId === uid && x.patientId === patient.id),
+      appointments: store.appointments.filter(
+        (x) => x.userId === uid && x.patientId === patient.id,
+      ),
+      goals: store.goals.filter((x) => x.userId === uid && x.patientId === patient.id),
+      mealPlans: store.mealPlans.filter((x) => x.userId === uid && x.patientId === patient.id),
+    });
+  }
   if (req.method === 'GET' && url.pathname === '/api/dashboard') {
     const patients = store.patients.filter((x) => x.userId === uid);
     const today = new Date().toISOString().slice(0, 10);
@@ -630,14 +762,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (req.method === 'POST' && url.pathname === '/api/patients') {
     const b = await body(req);
     if (!validText(b.name, 150)) return json(res, 400, { error: 'Nome completo é obrigatório.' });
+    patientFields(b);
     const p = {
       id: crypto.randomUUID(),
       userId: uid,
-      name: b.name.trim(),
+      name: String(b.name).trim(),
       email: String(b.email || '').slice(0, 254),
       phone: String(b.phone || '').slice(0, 40),
       birthDate: String(b.birthDate || ''),
-      status: ['Ativo', 'Em pausa', 'Arquivado'].includes(b.status) ? b.status : 'Ativo',
+      status: ['Ativo', 'Em pausa', 'Arquivado'].includes(String(b.status)) ? b.status : 'Ativo',
       objective: String(b.objective || '').slice(0, 500),
       clinicalNotes: String(b.clinicalNotes || '').slice(0, 5000),
       createdAt: new Date().toISOString(),
@@ -653,6 +786,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const p = owned(store.patients, patientMatch[1], uid);
     if (!p) return json(res, 404, { error: 'Paciente não encontrado.' });
     const b = await body(req);
+    patientFields(b, true);
     for (const k of ['name', 'email', 'phone', 'birthDate', 'status', 'objective', 'clinicalNotes'])
       if (b[k] !== undefined) p[k] = String(b[k]).slice(0, k === 'clinicalNotes' ? 5000 : 500);
     if (!validText(p.name, 150)) return json(res, 400, { error: 'Nome inválido.' });
@@ -756,7 +890,19 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const b = await body(req);
     if (!owned(store.patients, b.patientId, uid))
       return json(res, 404, { error: 'Paciente não encontrado.' });
-    const n = (k) => (b[k] === '' || b[k] == null ? null : Number(b[k]));
+    if (!dateOnly(b.date)) return json(res, 400, { error: 'Data inválida.' });
+    const n = (k) => {
+      if (b[k] === '' || b[k] == null) return null;
+      if (!['string', 'number'].includes(typeof b[k])) throw securityError(400, 'Medida inválida.');
+      const value = Number(b[k]);
+      if (!Number.isFinite(value)) throw securityError(400, 'Medida inválida.');
+      return value;
+    };
+    for (const key of ['waist', 'hip']) {
+      const value = n(key);
+      if (value !== null && (value <= 0 || value > 5000))
+        throw securityError(400, 'Medida inválida.');
+    }
     const weight = n('weight'),
       height = n('height'),
       fat = n('fat');
@@ -770,7 +916,9 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       id: crypto.randomUUID(),
       userId: uid,
       patientId: b.patientId,
-      date: /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : new Date().toISOString().slice(0, 10),
+      date: /^\d{4}-\d{2}-\d{2}$/.test(String(b.date))
+        ? b.date
+        : new Date().toISOString().slice(0, 10),
       weight,
       height,
       weightUnit: 'kg',
@@ -794,8 +942,15 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const b = await body(req);
     if (!owned(store.patients, b.patientId, uid))
       return json(res, 404, { error: 'Paciente não encontrado.' });
-    const start = Date.parse(b.start);
-    const duration = Math.max(15, Math.min(240, Number(b.duration) || 50));
+    if (
+      typeof b.start !== 'string' ||
+      (b.duration != null && !['string', 'number'].includes(typeof b.duration))
+    )
+      return json(res, 400, { error: 'Data ou duração inválida.' });
+    const start = Date.parse(String(b.start));
+    const duration = b.duration == null ? 50 : Number(b.duration);
+    if (!Number.isInteger(duration) || duration < 15 || duration > 240)
+      return json(res, 400, { error: 'Duração inválida.' });
     if (!Number.isFinite(start) || start < Date.now() - 60000)
       return json(res, 400, { error: 'Informe uma data futura válida.' });
     const end = new Date(start + duration * 60000).toISOString();
@@ -829,19 +984,38 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const a = owned(store.appointments, id, uid);
     if (!a) return json(res, 404, { error: 'Consulta não encontrada.' });
     const b = await body(req);
-    if (!['agendada', 'realizada', 'cancelada', 'falta'].includes(b.status))
+    if (!['agendada', 'realizada', 'cancelada', 'falta'].includes(String(b.status)))
       return json(res, 400, { error: 'Status inválido.' });
+    if (
+      b.status === 'agendada' &&
+      store.appointments.some(
+        (other) =>
+          other.id !== a.id &&
+          other.userId === uid &&
+          other.status === 'agendada' &&
+          Date.parse(other.start) < Date.parse(a.end) &&
+          Date.parse(other.end) > Date.parse(a.start),
+      )
+    )
+      return json(res, 409, { error: 'Já existe uma consulta nesse horário.' });
     a.status = b.status;
     audit(uid, 'appointment_status_changed', 'appointment', a.id);
     await persist();
     return json(res, 200, { appointment: a });
   }
+  if (req.method === 'GET' && url.pathname === '/api/goals')
+    return json(res, 200, {
+      goals: store.goals
+        .filter((x) => x.userId === uid)
+        .map((g) => ({ ...g, patientName: owned(store.patients, g.patientId, uid)?.name || '' })),
+    });
   if (req.method === 'POST' && url.pathname === '/api/goals') {
     const b = await body(req);
     if (!owned(store.patients, b.patientId, uid))
       return json(res, 404, { error: 'Paciente não encontrado.' });
     if (!validText(b.description, 500))
       return json(res, 400, { error: 'Descrição da meta é obrigatória.' });
+    if (!dateOnly(b.dueDate)) return json(res, 400, { error: 'Prazo inválido.' });
     const g = {
       id: crypto.randomUUID(),
       userId: uid,
@@ -863,7 +1037,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const g = owned(store.goals, id, uid);
     if (!g) return json(res, 404, { error: 'Meta não encontrada.' });
     const b = await body(req);
-    if (!['ativa', 'concluida', 'pausada'].includes(b.status))
+    if (!['ativa', 'concluida', 'pausada'].includes(String(b.status)))
       return json(res, 400, { error: 'Status inválido.' });
     g.status = b.status;
     if (validText(b.note, 1000))
@@ -884,6 +1058,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           patientId: p.patientId,
           patientName: owned(store.patients, p.patientId, uid)?.name || '',
           name: p.name,
+          revision: p.revision || 0,
           status: latest?.status || 'draft',
           versionCount: p.versions.length,
           latestVersion: latest
@@ -912,7 +1087,8 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       id: crypto.randomUUID(),
       userId: uid,
       patientId: b.patientId,
-      name: b.name.trim(),
+      name: String(b.name).trim(),
+      revision: 0,
       versions: [normalized.version],
       publishedVersionId: null,
       createdAt: now,
@@ -937,6 +1113,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     const plan = owned(store.mealPlans, draftMatch[1], uid);
     if (!plan) return json(res, 404, { error: 'Plano alimentar não encontrado.' });
     const b = await body(req);
+    revision(plan, b.expectedRevision);
     if (!validText(b.name, 120)) return json(res, 400, { error: 'Informe o nome do plano.' });
     const latest = plan.versions.at(-1);
     const normalized = mealPlanVersion(
@@ -951,6 +1128,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
       next.createdAt = latest.createdAt;
       plan.versions[plan.versions.length - 1] = next;
     } else plan.versions.push(next);
+    plan.revision = (plan.revision || 0) + 1;
     plan.name = b.name.trim();
     plan.updatedAt = new Date().toISOString();
     audit(
@@ -965,6 +1143,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   if (publishMatch && req.method === 'POST') {
     const plan = owned(store.mealPlans, publishMatch[1], uid);
     if (!plan) return json(res, 404, { error: 'Plano alimentar não encontrado.' });
+    revision(plan, (await body(req)).expectedRevision);
     const latest = plan.versions.at(-1);
     if (!latest || latest.status !== 'draft')
       return json(res, 409, { error: 'Crie uma nova versão antes de publicar novamente.' });
@@ -973,6 +1152,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
         error:
           'Adicione pelo menos uma refeição e alimentos com quantidade e unidade antes de publicar.',
       });
+    plan.revision = (plan.revision || 0) + 1;
     latest.status = 'published';
     latest.publishedAt = new Date().toISOString();
     plan.publishedVersionId = latest.id;
@@ -991,7 +1171,14 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
   return json(res, 404, { error: 'Rota não encontrada.' });
 }
 async function serveStatic(pathname: string, res: http.ServerResponse) {
-  let file = ['/', '/paciente', '/paciente/ativar', '/paciente/redefinir'].includes(pathname)
+  let file = [
+    '/',
+    '/privacy',
+    '/terms',
+    '/paciente',
+    '/paciente/ativar',
+    '/paciente/redefinir',
+  ].includes(pathname)
     ? 'index.html'
     : decodeURIComponent(pathname).replace(/^\/+/, '');
   let full = path.resolve(PUBLIC_DIR, file);
@@ -1021,13 +1208,17 @@ function ensureInitialized() {
   return initialization;
 }
 
+let pendingRequests = 0;
+let healthInFlight = 0;
 export async function requestHandler(req: http.IncomingMessage, res: http.ServerResponse) {
-  const requestId = crypto.randomUUID();
-  const started = Date.now();
+  const requestId = crypto.randomUUID(),
+    started = Date.now();
   res.setHeader('x-request-id', requestId);
   res.setHeader('referrer-policy', 'no-referrer');
   res.setHeader('x-frame-options', 'DENY');
   res.setHeader('permissions-policy', 'camera=(), microphone=(), geolocation=()');
+  if (process.env.NODE_ENV === 'production')
+    res.setHeader('strict-transport-security', 'max-age=31536000');
   res.on('finish', () => {
     if (req.url?.startsWith('/api/'))
       securityLog('http_request', {
@@ -1037,42 +1228,170 @@ export async function requestHandler(req: http.IncomingMessage, res: http.Server
         durationMs: Date.now() - started,
       });
   });
+  let counted = false;
   try {
-    if (req.url?.startsWith('/api/')) {
-      validateMutation(req);
-      const response = requestQueue.then(async () => {
-        const alreadyInitialized = initialization !== undefined;
-        await ensureInitialized();
-        const pathname = new URL(req.url!, 'http://localhost').pathname;
-        if (req.method === 'GET' && pathname === '/api/health') {
-          if (postgres) await postgres.health();
-          return json(res, 200, { ok: true });
-        }
-        if (req.method === 'POST' && authRoute(pathname)) {
-          const allowed = postgres
-            ? await postgres.consumeAuthAttempt(authBucket(req), AUTH_LIMIT, AUTH_WINDOW_SECONDS)
-            : consumeLocalAttempt(authBucket(req));
-          if (!allowed) {
-            res.setHeader('retry-after', String(AUTH_WINDOW_SECONDS));
-            securityLog('auth_rate_limited', { status: 429, requestId });
-            throw securityError(429, 'Muitas tentativas. Aguarde 15 minutos e tente novamente.');
-          }
-        }
-        // initialize already returns a fresh snapshot on the first request.
-        if (postgres && alreadyInitialized) store = normalizeStore(await postgres.load());
-        await handle(req, res);
-      });
-      requestQueue = response.catch(() => {});
-      await response;
-    } else {
+    if (!req.url?.startsWith('/api/')) {
       await handle(req, res);
+      return;
     }
+    validateMutation(req);
+    const pathname = new URL(req.url, 'http://localhost').pathname;
+    if (req.method === 'GET' && pathname === '/api/live') return json(res, 200, { ok: true });
+    if (req.method === 'GET' && ['/api/health', '/api/ready'].includes(pathname)) {
+      if (healthInFlight >= 4) return json(res, 503, { ok: false });
+      healthInFlight++;
+      try {
+        await ensureInitialized();
+        if (postgres) await postgres.health();
+        return json(res, 200, { ok: true });
+      } catch {
+        return json(res, 503, { ok: false });
+      } finally {
+        healthInFlight--;
+      }
+    }
+    if (req.method === 'GET' && pathname === '/api/jobs/mail') {
+      const expected = process.env.CRON_SECRET,
+        supplied = req.headers.authorization;
+      if (
+        !expected ||
+        expected.length < 32 ||
+        typeof supplied !== 'string' ||
+        Buffer.byteLength(supplied) !== Buffer.byteLength('Bearer ' + expected) ||
+        !crypto.timingSafeEqual(Buffer.from(supplied), Buffer.from('Bearer ' + expected))
+      )
+        return json(res, 401, { error: 'Autenticação necessária.' });
+      await ensureInitialized();
+      if (!postgres) return json(res, 503, { error: 'Banco requerido.' });
+      return json(res, 200, { delivered: await postgres.dispatchMail() });
+    }
+    if (pendingRequests >= 64) throw securityError(503, 'Serviço ocupado. Tente novamente.');
+    pendingRequests++;
+    counted = true;
+    // Parsing is bounded independently of the domain queue. A partial body cannot block others.
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method || 'GET')) await body(req);
+    let deliverMail = false;
+    let readyResponse: ReturnType<typeof bufferedResponse> | undefined;
+    const operation = requestQueue.then(async () => {
+      await ensureInitialized();
+      if (req.aborted || res.destroyed) return;
+      const globalAllowed = postgres
+        ? await postgres.consumeAuthAttempt('global:' + authBucket(req), 1000, 900)
+        : consumeLocalAttempt('global:' + authBucket(req), Date.now(), 1000);
+      if (!globalAllowed) throw securityError(429, 'Muitas requisições. Aguarde.');
+      if (
+        ['POST', 'DELETE'].includes(req.method || '') &&
+        (authRoute(pathname) || pathname.startsWith('/api/account'))
+      ) {
+        const allowed = postgres
+          ? await postgres.consumeAuthAttempt(authBucket(req), AUTH_LIMIT, AUTH_WINDOW_SECONDS)
+          : consumeLocalAttempt(authBucket(req));
+        if (!allowed) {
+          res.setHeader('retry-after', String(AUTH_WINDOW_SECONDS));
+          throw securityError(429, 'Muitas tentativas. Aguarde15minutos.');
+        }
+        const credentials = await body(req);
+        if (typeof credentials.email === 'string') {
+          const bucket =
+            'account:' + pathname + ':' + tokenHash(credentials.email.trim().toLowerCase());
+          const allowedAccount = postgres
+            ? await postgres.consumeAuthAttempt(bucket, 10, 900)
+            : consumeLocalAttempt(bucket, Date.now(), 10);
+          if (!allowedAccount) throw securityError(429, 'Muitas tentativas. Aguarde15minutos.');
+        }
+      }
+      if (postgres) {
+        const data = ['GET', 'HEAD', 'OPTIONS'].includes(req.method || 'GET')
+          ? {}
+          : await body(req);
+        const publicIdentity = [
+          '/api/login',
+          '/api/register',
+          '/api/patient/login',
+          '/api/patient/activate',
+          '/api/patient/invitations/validate',
+          '/api/patient/password-resets/validate',
+          '/api/patient/password-resets/complete',
+          '/api/auth/password-reset/request',
+          '/api/auth/password-reset/complete',
+          '/api/auth/verification/complete',
+        ].includes(pathname);
+        const professionalToken = publicIdentity ? undefined : cookie(req, 'nc_session'),
+          patientToken = publicIdentity ? undefined : cookie(req, 'nt_patient_session');
+        const owner = await postgres.ownerForRequest({
+          professionalToken: professionalToken ? tokenHash(professionalToken) : undefined,
+          patientToken: patientToken ? tokenHash(patientToken) : undefined,
+          email:
+            publicIdentity && typeof data.email === 'string'
+              ? data.email.trim().toLowerCase()
+              : undefined,
+          token:
+            publicIdentity && typeof data.token === 'string' ? tokenHash(data.token) : undefined,
+        });
+        store = normalizeStore(await postgres.load(owner));
+      }
+      const before = structuredClone(store),
+        professionalBefore = new Map(sessions),
+        patientBefore = new Map(patientSessions);
+      const buffered = bufferedResponse();
+      (buffered.response as http.ServerResponse & { pageUrl?: URL }).pageUrl = new URL(
+        req.url,
+        'http://localhost',
+      );
+      try {
+        await handle(req, buffered.response);
+        if (buffered.status >= 400) {
+          store = before;
+          sessions.clear();
+          for (const [k, v] of professionalBefore) sessions.set(k, v);
+          patientSessions.clear();
+          for (const [k, v] of patientBefore) patientSessions.set(k, v);
+        }
+        deliverMail =
+          buffered.status < 400 &&
+          store.mailOutbox.some((item) => !before.mailOutbox.some((old) => old.id === item.id));
+        readyResponse = buffered;
+      } catch (error) {
+        store = before;
+        sessions.clear();
+        for (const [k, v] of professionalBefore) sessions.set(k, v);
+        patientSessions.clear();
+        for (const [k, v] of patientBefore) patientSessions.set(k, v);
+        throw error;
+      }
+    });
+    requestQueue = operation.catch(() => {});
+    await operation;
+    // SMTP is outside the domain queue and only after committed state. Failures retain the outbox.
+    if (deliverMail && postgres) {
+      try {
+        await postgres.dispatchMail();
+      } catch {
+        securityLog('mail_dispatch_failed');
+      }
+    }
+    readyResponse?.flush(res);
   } catch (error) {
-    const status = error.status || 500;
+    if (
+      error.code === '23505' &&
+      req.method === 'POST' &&
+      req.url === '/api/register' &&
+      process.env.NODE_ENV === 'production'
+    )
+      return json(res, 202, { message: 'Se elegível, você receberá as instruções por e-mail.' });
+    const status = error.status || (error.code === '23505' || error.code === '23503' ? 409 : 500);
     securityLog('request_error', { status, method: req.method, requestId });
-    if (!res.headersSent)
-      json(res, status, { error: error.status ? error.message : 'Erro interno. Tente novamente.' });
-    else res.end();
+    if (!res.headersSent && !res.destroyed)
+      json(res, status, {
+        error: error.status
+          ? error.message
+          : status === 409
+            ? 'O registro já existe ou mudou. Recarregue.'
+            : 'Erro interno. Tente novamente.',
+      });
+    else if (!res.destroyed) res.end();
+  } finally {
+    if (counted) pendingRequests--;
   }
 }
 
@@ -1080,6 +1399,10 @@ if (require.main === module) {
   ensureInitialized()
     .then(() => {
       const server = http.createServer(requestHandler);
+      server.requestTimeout = 15000;
+      server.headersTimeout = 10000;
+      server.keepAliveTimeout = 5000;
+      process.on('SIGTERM', () => server.close(() => process.exit(0)));
       server.listen(PORT, () => console.log(`NutriTrack disponível em http://localhost:${PORT}`));
     })
     .catch(() => {

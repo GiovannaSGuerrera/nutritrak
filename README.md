@@ -24,9 +24,11 @@ Nesta fase, use apenas dados fictícios. A hospedagem usa planos gratuitos e pod
 
 Os dados da versão online ficam no PostgreSQL do Neon. A aplicação está hospedada na Vercel, com backend em Node.js e TypeScript.
 
-## O que vem pela frente
+## Preparação para produção
 
-Ainda estamos trabalhando para preparar o projeto para uso com dados reais. Entre os próximos passos estão melhorias de segurança e desempenho, recuperação de acesso por e-mail e relatórios para exportação.
+A branch de hardening implementa recuperação/verificação de e-mail, MFA, exportações técnicas, isolamento de consultas PostgreSQL, revisão de planos e CI. Essas mudanças ainda não foram publicadas em produção; a versão online não recebe automaticamente o código desta branch. SMTP real, migração e políticas jurídicas precisam homologação antes de receber dados reais.
+
+Consulte [o parecer final](docs/audit/FINAL_PRODUCTION_READINESS_REPORT.md), [os resultados](docs/audit/FINAL_TEST_RESULTS.md), [o guia de implantação](docs/audit/PRODUCTION_DEPLOYMENT_GUIDE.md) e [as ações externas](docs/audit/MANUAL_ACTIONS_REQUIRED.md).
 
 ## Proteção dos dados
 
@@ -72,9 +74,9 @@ Após iniciar o servidor local, abra http://localhost:3000. Esse endereço funci
 
 A versão online já utiliza PostgreSQL no Neon. Os passos abaixo são destinados a desenvolvedores que desejam configurar outro ambiente ou migrar dados.
 
-Crie um banco dedicado para o NutriTrack e configure `DATABASE_URL` no ambiente da API. A conta do banco precisa poder criar as tabelas, índices e relacionamentos da migração, além de ler e gravar seus registros. Depois execute `pnpm start`.
+Crie um banco dedicado para o NutriTrack e configure `DATABASE_URL` no ambiente da API. A conta de migração é separada da conta runtime. Execute `pnpm db:migrate` com MIGRATION_DATABASE_URL em ambiente autorizado e ensaie primeiro uma cópia isolada. Runtime de produção usa DB_AUTO_MIGRATE=false e login restrito, sem DDL. Não use a conta administrativa na Vercel; veja o guia de implantação.
 
-Na primeira execução com o banco vazio, a API importa `data/store.json` se ele existir. Use `DATA_DIR` para indicar outra pasta que contenha esse arquivo. Pare o servidor que grava no JSON antes de iniciar a migração. O arquivo original fica disponível como cópia e não é reimportado nas próximas inicializações.
+Somente em desenvolvimento com migração automática habilitada, a API importa `data/store.json` se ele existir. Use `DATA_DIR` para indicar outra pasta que contenha esse arquivo. Pare o servidor que grava no JSON antes de iniciar a migração. O arquivo original fica disponível como cópia e não é reimportado nas próximas inicializações.
 
 O PostgreSQL organiza profissionais, pacientes, avaliações, consultas, metas, planos, versões, contas do portal, convites, redefinições de senha e auditoria em tabelas próprias. Refeições, itens e anotações de progresso permanecem como documentos JSONB dentro do registro correspondente. Com PostgreSQL, as sessões são compartilhadas entre instâncias, expiram após oito horas e guardam somente o hash do token. Logout e troca de senha revogam o acesso. Sem `DATABASE_URL`, o ambiente de desenvolvimento continua usando o arquivo local. Em produção, configure `DATABASE_URL`.
 

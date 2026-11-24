@@ -1,0 +1,23 @@
+{
+  "reports": [
+    "REMEDIATION_TRACKER.md",
+    "REMEDIATION_REPORT.md",
+    "FINAL_SECURITY_REPORT.md",
+    "FINAL_TEST_RESULTS.md",
+    "PRODUCTION_DEPLOYMENT_GUIDE.md",
+    "MANUAL_ACTIONS_REQUIRED.md",
+    "FINAL_PRODUCTION_READINESS_REPORT.md"
+  ],
+  "rows": 14,
+  "statuses": {
+    "VALIDATED": 11,
+    "IMPLEMENTED": 1,
+    "BLOCKED": 2
+  },
+  "apiRoutes": 51,
+  "scoreBaselineRetrospective": 62.1,
+  "scoreCurrentLocal": 81.9,
+  "secretFormatFiles": 49,
+  "secretMatches": [],
+  "limitations": "Format scan of changed files;not universal secret detection"
+}

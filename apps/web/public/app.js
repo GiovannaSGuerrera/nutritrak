@@ -28,6 +28,7 @@ const timeFmt = (s) =>
   s ? new Date(s).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
 async function api(url, opts = {}) {
   const r = await fetch(url, {
+    signal: opts.signal || AbortSignal.timeout(15000),
     ...opts,
     headers: { 'content-type': 'application/json', ...(opts.headers || {}) },
   });
@@ -36,6 +37,24 @@ async function api(url, opts = {}) {
     const error = Error(d.error || 'Não foi possível concluir a operação.');
     error.status = r.status;
     throw error;
+  }
+  if (d.page && d.page.nextOffset !== null && (!opts.method || opts.method === 'GET')) {
+    const key = d.page.collection,
+      joined = [...d[key]];
+    let offset = d.page.nextOffset;
+    while (offset !== null) {
+      const nextUrl = new URL(url, location.origin);
+      nextUrl.searchParams.set('offset', offset);
+      const response = await fetch(nextUrl, {
+        headers: { 'content-type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      });
+      const part = await response.json();
+      if (!response.ok) throw Error(part.error || 'Não foi possível carregar a lista.');
+      joined.push(...part[key]);
+      offset = part.page.nextOffset;
+    }
+    d[key] = joined;
   }
   return d;
 }
@@ -73,11 +92,16 @@ function openModal(title, intro, fields, submitText, handler) {
   $('#modal-form').onsubmit = async (e) => {
     e.preventDefault();
     const data = Object.fromEntries(new FormData(e.currentTarget));
+    const submit = e.currentTarget.querySelector('button[type=submit],button:not([type])');
+    if (submit?.disabled) return;
+    if (submit) submit.disabled = true;
     try {
       await handler(data);
       d.close();
     } catch (err) {
       toast(err.message, true);
+    } finally {
+      if (submit) submit.disabled = false;
     }
   };
   showLabeledModal(d);
@@ -155,7 +179,7 @@ async function dashboard() {
 }
 function newPatientsChart(months) {
   const max = Math.max(...months.map((m) => m.total), 1);
-  return `<div class="new-patient-chart" role="img" aria-label="Novos pacientes por mês nos últimos seis meses">${months.map((m) => `<div class="month-column"><div class="bar-area"><span class="bar-value">${m.total || ''}</span><div class="month-bar" style="height:${m.total ? Math.max(8, (m.total / max) * 100) : 0}%"></div></div><span class="month-label">${esc(m.label)}</span></div>`).join('')}</div>`;
+  return `<div class="new-patient-chart" role="img" aria-label="Novos pacientes por mês nos últimos seis meses">${months.map((m) => `<div class="month-column"><div class="bar-area"><span class="bar-value">${m.total || ''}</span><svg class="month-bar-svg" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><rect x="0" y="${100 - (m.total ? Math.max(8, (m.total / max) * 100) : 0)}" width="100" height="${m.total ? Math.max(8, (m.total / max) * 100) : 0}"></rect></svg></div><span class="month-label">${esc(m.label)}</span></div>`).join('')}</div>`;
 }
 async function assessmentsPage() {
   const { assessments } = await api('/api/assessments');
@@ -250,7 +274,9 @@ async function mealPlansPage() {
         try {
           await api(`/api/meal-plans/${b.dataset.publishPlan}/publish`, {
             method: 'POST',
-            body: '{}',
+            body: JSON.stringify({
+              expectedRevision: mealPlans.find((p) => p.id === b.dataset.publishPlan).revision || 0,
+            }),
           });
           toast('Versão publicada e preservada');
           await mealPlansPage();
@@ -279,12 +305,20 @@ function mealPlanEditor(plan = null) {
   const d = $('#modal'),
     root = $('#modal-content');
   root.innerHTML = `<h2>${plan ? (latest?.status === 'published' ? 'Criar nova versão' : 'Editar rascunho') : 'Criar plano alimentar'}</h2><p class="modal-intro">${plan ? 'A versão já publicada será preservada; as alterações ficam em um rascunho novo.' : 'O plano começa como rascunho e pode ser publicado após revisar os itens.'}</p><form id="plan-form"><div class="form-grid">${patientSelect}${field('name', 'Nome do plano', 'text', { required: true, wide: true, placeholder: 'Ex.: Plano de acompanhamento' })}${field('objective', 'Objetivo do plano', 'textarea', { wide: true, placeholder: 'Contexto e objetivo definidos pelo profissional' })}${field('startDate', 'Início da vigência', 'date')}${field('reviewDate', 'Data de revisão', 'date')}${field('generalInstructions', 'Orientações gerais', 'textarea', { wide: true, placeholder: 'Orientações fornecidas pelo profissional' })}</div><div class="meal-section-head"><div><h3>Refeições</h3><p>Valores nutricionais não são calculados automaticamente.</p></div><button type="button" class="button subtle add-plan-meal">＋ Adicionar refeição</button></div><div id="plan-meals">${(selected?.meals?.length ? selected.meals : [{}]).map(mealEditorMarkup).join('')}</div><div class="modal-actions"><button type="button" class="button" id="cancel-plan">Cancelar</button><button class="button primary">Salvar rascunho</button></div></form>`;
+  if (plan)
+    for (const key of ['name', 'objective', 'startDate', 'reviewDate', 'generalInstructions']) {
+      const field = root.querySelector(`[name="${key}"]`);
+      if (field) field.value = key === 'name' ? plan.name : selected?.[key] || '';
+    }
   $('#cancel-plan').onclick = () => d.close();
   bindMealEditor();
   $('#plan-form').onsubmit = async (e) => {
     e.preventDefault();
     const form = Object.fromEntries(new FormData(e.currentTarget));
-    const payload = planPayload(form);
+    const payload = {
+      ...planPayload(form),
+      ...(plan ? { expectedRevision: plan.revision || 0 } : {}),
+    };
     if (!payload.meals.length) {
       toast('Adicione pelo menos uma refeição.', true);
       return;
@@ -340,7 +374,7 @@ function patientsPage() {
       p.name.toLowerCase().includes(state.query.toLowerCase()),
   );
   $('#content').innerHTML =
-    `${heading('Pacientes', 'Organize os cadastros e acompanhe a evolução individual.', `<button class="button primary" id="new-patient">＋ Novo paciente</button>`)}<div class="toolbar"><input class="search" id="patient-search" placeholder="⌕  Buscar por nome" value="${esc(state.query)}"><select id="patient-filter"><option>Todos</option>${['Ativo', 'Em pausa', 'Arquivado'].map((s) => `<option ${state.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span class="muted" style="margin-left:auto;font-size:11px">${list.length} paciente${list.length === 1 ? '' : 's'}</span></div><div class="patient-list">${list.length ? list.map(patientCard).join('') : `<section class="empty"><div style="font-size:28px;color:#81a47f">♧</div><h3>${state.patients.length ? 'Nenhum resultado' : 'Seu acompanhamento começa aqui'}</h3><p>${state.patients.length ? 'Ajuste a busca ou o filtro para encontrar um paciente.' : 'Cadastre seu primeiro paciente para organizar consultas, avaliações e metas em um só lugar.'}</p>${state.patients.length ? '' : '<button class="button primary" id="empty-create">＋ Cadastrar paciente</button>'}</section>`}</div>`;
+    `${heading('Pacientes', 'Organize os cadastros e acompanhe a evolução individual.', `<button class="button primary" id="new-patient">＋ Novo paciente</button>`)}<div class="toolbar"><input class="search" id="patient-search" placeholder="⌕  Buscar por nome" value="${esc(state.query)}"><select id="patient-filter"><option>Todos</option>${['Ativo', 'Em pausa', 'Arquivado'].map((s) => `<option ${state.status === s ? 'selected' : ''}>${s}</option>`).join('')}</select><span class="muted" data-layout="legacy-layout-1">${list.length} paciente${list.length === 1 ? '' : 's'}</span></div><div class="patient-list">${list.length ? list.map(patientCard).join('') : `<section class="empty"><div data-layout="legacy-layout-2">♧</div><h3>${state.patients.length ? 'Nenhum resultado' : 'Seu acompanhamento começa aqui'}</h3><p>${state.patients.length ? 'Ajuste a busca ou o filtro para encontrar um paciente.' : 'Cadastre seu primeiro paciente para organizar consultas, avaliações e metas em um só lugar.'}</p>${state.patients.length ? '' : '<button class="button primary" id="empty-create">＋ Cadastrar paciente</button>'}</section>`}</div>`;
   $('#new-patient').onclick = () => patientModal();
   $('#empty-create')?.addEventListener('click', () => patientModal());
   $('#patient-search').oninput = (e) => {
@@ -363,16 +397,15 @@ async function patientProfile(id) {
   const d = await api(`/api/patients/${id}`);
   state.patientData = d;
   state.patient = d.patient;
-  const p = d.patient,
-    ass = d.assessments;
+  const p = d.patient;
   $('#crumb').innerHTML =
-    `<a href="#patients" id="back-patients" style="color:#607268;text-decoration:none">Pacientes</a> <span>/</span> ${esc(p.name)}`;
+    `<a href="#patients" id="back-patients" data-layout="legacy-layout-3">Pacientes</a> <span>/</span> ${esc(p.name)}`;
   $('#back-patients').onclick = (e) => {
     e.preventDefault();
     navigate('patients');
   };
   $('#content').innerHTML =
-    `<div class="page-heading"><div style="display:flex;align-items:center;gap:13px"><div class="patient-initial" style="width:48px;height:48px;font-size:18px">${esc(p.name[0].toUpperCase())}</div><div><h1>${esc(p.name)}</h1><p>${esc(p.email || 'E-mail não informado')} · <span class="status-pill">${esc(p.status)}</span></p></div></div><div style="display:flex;gap:8px"><button class="button" id="edit-patient">Editar cadastro</button><button class="button primary" id="add-assessment">＋ Avaliação</button></div></div><div class="detail-tabs"><button class="tab active" data-tab="overview">Visão geral</button><button class="tab" data-tab="assessments">Avaliações</button><button class="tab" data-tab="appointments">Consultas</button><button class="tab" data-tab="goals">Metas</button><button class="tab" data-tab="clinical">Histórico clínico</button></div><div id="patient-tab-content"></div>`;
+    `<div class="page-heading"><div data-layout="legacy-layout-4"><div class="patient-initial" data-layout="legacy-layout-5">${esc(p.name[0].toUpperCase())}</div><div><h1>${esc(p.name)}</h1><p>${esc(p.email || 'E-mail não informado')} · <span class="status-pill">${esc(p.status)}</span></p></div></div><div data-layout="legacy-layout-6"><button class="button" id="edit-patient">Editar cadastro</button><button class="button primary" id="add-assessment">＋ Avaliação</button></div></div><div class="detail-tabs"><button class="tab active" data-tab="overview">Visão geral</button><button class="tab" data-tab="assessments">Avaliações</button><button class="tab" data-tab="appointments">Consultas</button><button class="tab" data-tab="goals">Metas</button><button class="tab" data-tab="clinical">Histórico clínico</button></div><div id="patient-tab-content"></div>`;
   $('#edit-patient').onclick = () => patientModal(p);
   $('#add-assessment').onclick = () => assessmentModal(p.id);
   const portalButton = document.createElement('button');
@@ -414,7 +447,7 @@ function renderPatientTab(tab) {
     latest = ass[0];
   const box = $('#patient-tab-content');
   if (tab === 'overview') {
-    box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Avaliações registradas</small><strong>${ass.length}</strong></div><div class="metric"><small>Peso mais recente</small><strong>${latest?.weight != null ? latest.weight + ' kg' : '—'}</strong></div><div class="metric"><small>IMC mais recente</small><strong>${latest?.bmi ?? '—'}</strong></div><div class="metric"><small>Consultas</small><strong>${d.appointments.length}</strong></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Evolução do peso</h2><p>Valores registrados em avaliações</p></div><button class="text-action" data-tab="assessments">Ver histórico →</button></div>${ass.filter((a) => a.weight != null).length ? weightChart(ass) : '<div class="empty-inline">Ainda não há medidas de peso registradas.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Resumo do acompanhamento</h2><p>Informações do cadastro</p></div></div><p class="row-secondary">Objetivo principal</p><div class="row-primary" style="margin:5px 0 16px">${esc(p.objective || 'Não informado')}</div><p class="row-secondary">Próxima consulta</p><div class="row-primary" style="margin-top:5px">${d.appointments.filter((a) => a.status === 'agendada').length ? dateFmt(d.appointments.find((a) => a.status === 'agendada').start) : 'Nenhuma agendada'}</div><div style="margin-top:17px"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section></div>`;
+    box.innerHTML = `<div class="metric-grid"><div class="metric"><small>Avaliações registradas</small><strong>${ass.length}</strong></div><div class="metric"><small>Peso mais recente</small><strong>${latest?.weight != null ? latest.weight + ' kg' : '—'}</strong></div><div class="metric"><small>IMC mais recente</small><strong>${latest?.bmi ?? '—'}</strong></div><div class="metric"><small>Consultas</small><strong>${d.appointments.length}</strong></div></div><div class="dashboard-grid"><section class="panel"><div class="panel-head"><div><h2>Evolução do peso</h2><p>Valores registrados em avaliações</p></div><button class="text-action" data-tab="assessments">Ver histórico →</button></div>${ass.filter((a) => a.weight != null).length ? weightChart(ass) : '<div class="empty-inline">Ainda não há medidas de peso registradas.</div>'}</section><section class="panel"><div class="panel-head"><div><h2>Resumo do acompanhamento</h2><p>Informações do cadastro</p></div></div><p class="row-secondary">Objetivo principal</p><div class="row-primary" data-layout="legacy-layout-7">${esc(p.objective || 'Não informado')}</div><p class="row-secondary">Próxima consulta</p><div class="row-primary" data-layout="legacy-layout-8">${d.appointments.filter((a) => a.status === 'agendada').length ? dateFmt(d.appointments.find((a) => a.status === 'agendada').start) : 'Nenhuma agendada'}</div><div data-layout="legacy-layout-9"><button class="button subtle" id="profile-appointment">＋ Agendar consulta</button></div></section></div>`;
     $('#profile-appointment').onclick = () => appointmentModal(p.id);
     $$('[data-tab]').forEach(
       (x) =>
@@ -424,7 +457,7 @@ function renderPatientTab(tab) {
         }),
     );
   } else if (tab === 'assessments') {
-    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Avaliações antropométricas</h2><p>As medidas ausentes permanecem sem valor.</p></div><button class="button primary" id="add-assessment-tab">＋ Registrar</button></div>${ass.length ? `<div style="overflow:auto"><table class="table"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>IMC</th><th>Cintura</th><th>% gordura</th><th>Método</th></tr></thead><tbody>${ass.map((a) => `<tr><td>${dateFmt(a.date)}</td><td>${a.weight ?? '—'} ${a.weight ? 'kg' : ''}</td><td>${a.height ?? '—'} ${a.height ? 'cm' : ''}</td><td>${a.bmi ?? '—'}</td><td>${a.waist ?? '—'} ${a.waist ? 'cm' : ''}</td><td>${a.fat ?? '—'} ${a.fat !== null ? '%' : ''}</td><td>${esc(a.method || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-inline">Nenhuma avaliação registrada.</div>`}</section>`;
+    box.innerHTML = `<section class="panel"><div class="panel-head"><div><h2>Avaliações antropométricas</h2><p>As medidas ausentes permanecem sem valor.</p></div><button class="button primary" id="add-assessment-tab">＋ Registrar</button></div>${ass.length ? `<div data-layout="legacy-layout-10"><table class="table"><thead><tr><th>Data</th><th>Peso</th><th>Altura</th><th>IMC</th><th>Cintura</th><th>% gordura</th><th>Método</th></tr></thead><tbody>${ass.map((a) => `<tr><td>${dateFmt(a.date)}</td><td>${a.weight ?? '—'} ${a.weight ? 'kg' : ''}</td><td>${a.height ?? '—'} ${a.height ? 'cm' : ''}</td><td>${a.bmi ?? '—'}</td><td>${a.waist ?? '—'} ${a.waist ? 'cm' : ''}</td><td>${a.fat ?? '—'} ${a.fat !== null ? '%' : ''}</td><td>${esc(a.method || '—')}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-inline">Nenhuma avaliação registrada.</div>`}</section>`;
     $('#add-assessment-tab').onclick = () => assessmentModal(p.id);
   } else if (tab === 'appointments') {
     box.innerHTML = `<section class="panel"><div class="panel-head"><h2>Histórico de consultas</h2><button class="button primary" id="add-appt">＋ Agendar</button></div>${d.appointments.length ? d.appointments.map((a) => `<div class="appointment-row"><div class="time-block">${timeFmt(a.start)}</div><div><div class="row-primary">${dateFmt(a.start)} · ${esc(a.type)}</div><div class="row-secondary">${esc(a.notes || 'Sem observações')}</div></div><select class="appt-status" data-id="${a.id}"><option value="agendada" ${a.status === 'agendada' ? 'selected' : ''}>Agendada</option><option value="realizada" ${a.status === 'realizada' ? 'selected' : ''}>Realizada</option><option value="falta" ${a.status === 'falta' ? 'selected' : ''}>Falta</option><option value="cancelada" ${a.status === 'cancelada' ? 'selected' : ''}>Cancelada</option></select></div>`).join('') : '<div class="empty-inline">Nenhuma consulta no histórico.</div>'}</section>`;
@@ -458,7 +491,7 @@ function renderPatientTab(tab) {
         }),
     );
   } else {
-    box.innerHTML = `<section class="panel"><h2 style="font:700 14px Manrope">Histórico clínico</h2><p class="muted" style="font-size:12px">${esc(p.clinicalNotes || 'Não há observações clínicas registradas.')}</p><p class="row-secondary" style="margin-top:18px">Objetivo principal: ${esc(p.objective || 'Não informado')}</p></section>`;
+    box.innerHTML = `<section class="panel"><h2 data-layout="legacy-layout-11">Histórico clínico</h2><p class="muted" data-layout="legacy-layout-12">${esc(p.clinicalNotes || 'Não há observações clínicas registradas.')}</p><p class="row-secondary" data-layout="legacy-layout-13">Objetivo principal: ${esc(p.objective || 'Não informado')}</p></section>`;
   }
 }
 function weightChart(ass) {
@@ -476,10 +509,10 @@ function weightChart(ass) {
     a,
   }));
   const path = coords.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
-  return `<div class="chart-wrap"><svg viewBox="0 0 120 170" preserveAspectRatio="none"><path d="${path}" fill="none" stroke="#527a5f" stroke-width="2" vector-effect="non-scaling-stroke"/>${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="#527a5f"><title>${dateFmt(p.a.date)}: ${p.a.weight} kg</title></circle>`).join('')}</svg></div><div style="display:flex;justify-content:space-between;color:#98a198;font-size:10px">${coords.length ? `<span>${dateFmt(coords[0].a.date)}</span><span>${dateFmt(coords.at(-1).a.date)}</span>` : ''}</div>`;
+  return `<div class="chart-wrap"><svg viewBox="0 0 120 170" preserveAspectRatio="none"><path d="${path}" fill="none" stroke="#527a5f" stroke-width="2" vector-effect="non-scaling-stroke"/>${coords.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="2.5" fill="#527a5f"><title>${dateFmt(p.a.date)}: ${p.a.weight} kg</title></circle>`).join('')}</svg></div><div data-layout="legacy-layout-14">${coords.length ? `<span>${dateFmt(coords[0].a.date)}</span><span>${dateFmt(coords.at(-1).a.date)}</span>` : ''}</div>`;
 }
 function goalRow(g) {
-  return `<div class="appointment-row"><div class="avatar">◎</div><div style="flex:1"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><select class="goal-status" data-id="${g.id}"><option value="ativa" ${g.status === 'ativa' ? 'selected' : ''}>Ativa</option><option value="concluida" ${g.status === 'concluida' ? 'selected' : ''}>Concluída</option><option value="pausada" ${g.status === 'pausada' ? 'selected' : ''}>Pausada</option></select></div>`;
+  return `<div class="appointment-row"><div class="avatar">◎</div><div data-layout="legacy-layout-15"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><select class="goal-status" data-id="${g.id}"><option value="ativa" ${g.status === 'ativa' ? 'selected' : ''}>Ativa</option><option value="concluida" ${g.status === 'concluida' ? 'selected' : ''}>Concluída</option><option value="pausada" ${g.status === 'pausada' ? 'selected' : ''}>Pausada</option></select></div>`;
 }
 function assessmentModal(patientId = null) {
   if (!state.patients.length) {
@@ -560,7 +593,7 @@ async function agendaPage() {
   state.appointments = d.appointments;
   const list = d.appointments;
   $('#content').innerHTML =
-    `${heading('Agenda', 'Consulte os horários e atualize o andamento dos atendimentos.', `<button class="button primary" id="new-appt">＋ Agendar consulta</button>`)}<section class="panel">${list.length ? `<div style="overflow:auto"><table class="table"><thead><tr><th>Data e horário</th><th>Paciente</th><th>Tipo</th><th>Duração</th><th>Status</th></tr></thead><tbody>${list.map((a) => `<tr><td>${dateFmt(a.start)} · ${timeFmt(a.start)}</td><td>${esc(a.patientName)}</td><td>${esc(a.type)}</td><td>${a.duration} min</td><td><select class="appt-status" data-id="${a.id}"><option value="agendada" ${a.status === 'agendada' ? 'selected' : ''}>Agendada</option><option value="realizada" ${a.status === 'realizada' ? 'selected' : ''}>Realizada</option><option value="falta" ${a.status === 'falta' ? 'selected' : ''}>Falta</option><option value="cancelada" ${a.status === 'cancelada' ? 'selected' : ''}>Cancelada</option></select></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty"><div style="font-size:28px;color:#81a47f">▦</div><h3>Sua agenda está vazia</h3><p>Agende consultas para organizar os próximos atendimentos em um só lugar.</p><button class="button primary" id="empty-appt">＋ Agendar consulta</button></div>`}</section>`;
+    `${heading('Agenda', 'Consulte os horários e atualize o andamento dos atendimentos.', `<button class="button primary" id="new-appt">＋ Agendar consulta</button>`)}<section class="panel">${list.length ? `<div data-layout="legacy-layout-10"><table class="table"><thead><tr><th>Data e horário</th><th>Paciente</th><th>Tipo</th><th>Duração</th><th>Status</th></tr></thead><tbody>${list.map((a) => `<tr><td>${dateFmt(a.start)} · ${timeFmt(a.start)}</td><td>${esc(a.patientName)}</td><td>${esc(a.type)}</td><td>${a.duration} min</td><td><select class="appt-status" data-id="${a.id}"><option value="agendada" ${a.status === 'agendada' ? 'selected' : ''}>Agendada</option><option value="realizada" ${a.status === 'realizada' ? 'selected' : ''}>Realizada</option><option value="falta" ${a.status === 'falta' ? 'selected' : ''}>Falta</option><option value="cancelada" ${a.status === 'cancelada' ? 'selected' : ''}>Cancelada</option></select></td></tr>`).join('')}</tbody></table></div>` : `<div class="empty"><div data-layout="legacy-layout-2">▦</div><h3>Sua agenda está vazia</h3><p>Agende consultas para organizar os próximos atendimentos em um só lugar.</p><button class="button primary" id="empty-appt">＋ Agendar consulta</button></div>`}</section>`;
   $('#new-appt').onclick = () => appointmentModal();
   $('#empty-appt')?.addEventListener('click', () => appointmentModal());
   $$('.appt-status').forEach(
@@ -580,18 +613,26 @@ async function agendaPage() {
 }
 async function goalsPage() {
   await loadPatients();
-  const all = [];
-  for (const p of state.patients) {
-    const d = await api(`/api/patients/${p.id}`);
-    for (const g of d.goals) all.push({ ...g, patientName: p.name });
-  }
+  const all = (await api('/api/goals')).goals;
   $('#content').innerHTML =
-    `${heading('Metas', 'Acompanhe objetivos individuais definidos com seus pacientes.', `<button class="button primary" id="new-goal">＋ Nova meta</button>`)}<section class="panel">${all.length ? all.map((g) => `<div class="appointment-row"><div class="avatar">◎</div><div style="flex:1"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.patientName)} · ${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><span class="status-pill">${g.status === 'ativa' ? 'Ativa' : g.status === 'concluida' ? 'Concluída' : 'Pausada'}</span></div>`).join('') : `<div class="empty"><div style="font-size:28px;color:#81a47f">◎</div><h3>Nenhuma meta cadastrada</h3><p>Crie objetivos individuais de saúde e hábitos junto aos seus pacientes.</p><button class="button primary" id="empty-goal">＋ Criar meta</button></div>`}</section>`;
+    `${heading('Metas', 'Acompanhe objetivos individuais definidos com seus pacientes.', `<button class="button primary" id="new-goal">＋ Nova meta</button>`)}<section class="panel">${all.length ? all.map((g) => `<div class="appointment-row"><div class="avatar">◎</div><div data-layout="legacy-layout-15"><div class="row-primary">${esc(g.description)}</div><div class="row-secondary">${esc(g.patientName)} · ${esc(g.category)}${g.dueDate ? ' · prazo ' + dateFmt(g.dueDate) : ''}</div></div><span class="status-pill">${g.status === 'ativa' ? 'Ativa' : g.status === 'concluida' ? 'Concluída' : 'Pausada'}</span></div>`).join('') : `<div class="empty"><div data-layout="legacy-layout-2">◎</div><h3>Nenhuma meta cadastrada</h3><p>Crie objetivos individuais de saúde e hábitos junto aos seus pacientes.</p><button class="button primary" id="empty-goal">＋ Criar meta</button></div>`}</section>`;
   $('#new-goal').onclick = () => goalModal();
   $('#empty-goal')?.addEventListener('click', () => goalModal());
 }
 async function showApp(user) {
   state.user = user || (await api('/api/me')).user;
+  $('#security-account').hidden = !state.user.securityFeatures;
+  if (!state.user.emailVerified && state.user.verificationRequired) {
+    $('#verification-notice').hidden = false;
+    $('#resend-verification').onclick = async () => {
+      try {
+        const r = await api('/api/auth/verification/request', { method: 'POST', body: '{}' });
+        toast(r.message);
+      } catch (e) {
+        toast(e.message, true);
+      }
+    };
+  }
   $('#auth').hidden = true;
   $('#app').hidden = false;
   $('#user-name').textContent = state.user.name;
@@ -603,13 +644,22 @@ async function showApp(user) {
     day: 'numeric',
     month: 'short',
   });
+  if (state.user.verificationRequired && !state.user.emailVerified) {
+    await accountSecurityPage();
+    return;
+  }
   await Promise.all([navigate('dashboard'), loadPatients()]);
 }
 $('#auth-form').onsubmit = async (e) => {
   e.preventDefault();
   $('#auth-error').textContent = '';
   const endpoint = state.authMode === 'login' ? '/api/login' : '/api/register',
-    payload = { email: $('#auth-email').value, password: $('#auth-password').value };
+    payload = {
+      email: $('#auth-email').value,
+      password: $('#auth-password').value,
+      code: $('#auth-mfa').value,
+      recoveryCode: $('#auth-recovery').value || undefined,
+    };
   if (state.authMode === 'register') payload.name = $('#auth-name').value;
   const submit = $('#auth-submit');
   if (submit.disabled) return;
@@ -618,6 +668,10 @@ $('#auth-form').onsubmit = async (e) => {
   submit.textContent = state.authMode === 'register' ? 'Criando sua conta…' : 'Entrando…';
   try {
     const result = await api(endpoint, { method: 'POST', body: JSON.stringify(payload) });
+    if (!result.user) {
+      $('#auth-error').textContent = result.message || 'Confira seu e-mail.';
+      return;
+    }
     await showApp(result.user);
   } catch (err) {
     $('#auth-error').textContent = err.message;
@@ -700,7 +754,10 @@ document.addEventListener(
   },
   true,
 );
-if (!location.pathname.startsWith('/paciente'))
+if (
+  !location.pathname.startsWith('/paciente') &&
+  !['/privacy', '/terms'].includes(location.pathname)
+)
   showApp().catch(() => {
     $('#auth').hidden = false;
     $('#app').hidden = true;

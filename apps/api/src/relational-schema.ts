@@ -210,8 +210,66 @@ export const entities: EntityDefinition[] = [
     },
     indexes: [['userId', 'at']],
   },
+  {
+    key: 'authTokens',
+    table: 'professional_tokens',
+    columns: {
+      userId: 'text NOT NULL REFERENCES professionals(id)',
+      purpose: 'text NOT NULL',
+      tokenHash: 'text NOT NULL UNIQUE',
+      expiresAt: 'double precision NOT NULL',
+    },
+    indexes: [['userId']],
+  },
+  {
+    key: 'mailOutbox',
+    table: 'mail_outbox',
+    columns: {
+      userId: 'text NOT NULL REFERENCES professionals(id)',
+      encrypted: 'jsonb NOT NULL',
+      expiresAt: 'double precision NOT NULL',
+      attempts: 'integer NOT NULL',
+      nextAt: 'double precision NOT NULL',
+    },
+    indexes: [['userId'], ['nextAt']],
+  },
+  {
+    key: 'privacyRequests',
+    table: 'privacy_requests',
+    columns: {
+      userId: 'text NOT NULL REFERENCES professionals(id)',
+      type: 'text NOT NULL',
+      status: 'text NOT NULL',
+      createdAt: 'text NOT NULL',
+    },
+    indexes: [['userId']],
+  },
 ];
 
+const identitySql = `
+CREATE TABLE IF NOT EXISTS login_identities(email text PRIMARY KEY,kind text NOT NULL,subject_id text NOT NULL UNIQUE);
+CREATE OR REPLACE FUNCTION maintain_login_identity() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF TG_OP='DELETE' THEN DELETE FROM login_identities WHERE subject_id=OLD.id AND kind=TG_TABLE_NAME; RETURN OLD; END IF;
+  IF TG_OP='UPDATE' AND OLD.email IS DISTINCT FROM NEW.email THEN DELETE FROM login_identities WHERE subject_id=OLD.id AND kind=TG_TABLE_NAME; END IF;
+  INSERT INTO login_identities(email,kind,subject_id) VALUES(NEW.email,TG_TABLE_NAME,NEW.id)
+    ON CONFLICT(email) DO UPDATE SET subject_id=EXCLUDED.subject_id
+    WHERE login_identities.subject_id=EXCLUDED.subject_id AND login_identities.kind=EXCLUDED.kind;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Identity already exists' USING ERRCODE='23505'; END IF;
+  RETURN NEW;
+END $$;
+INSERT INTO login_identities(email,kind,subject_id)
+ SELECT email,'professionals',id FROM professionals
+ ON CONFLICT(email) DO NOTHING;
+INSERT INTO login_identities(email,kind,subject_id)
+ SELECT email,'patient_accounts',id FROM patient_accounts
+ ON CONFLICT(email) DO NOTHING;
+DO $$ BEGIN
+ IF EXISTS(SELECT 1 FROM professionals p JOIN patient_accounts a ON p.email=a.email) THEN RAISE EXCEPTION 'Reconcile duplicate identity before migration'; END IF;
+END $$;
+CREATE OR REPLACE TRIGGER professional_identity BEFORE INSERT OR UPDATE OF email OR DELETE ON professionals FOR EACH ROW EXECUTE FUNCTION maintain_login_identity();
+CREATE OR REPLACE TRIGGER patient_identity BEFORE INSERT OR UPDATE OF email OR DELETE ON patient_accounts FOR EACH ROW EXECUTE FUNCTION maintain_login_identity();
+`;
 export const schemaSql = [
   `CREATE TABLE IF NOT EXISTS auth_rate_limits (
     bucket_hash text PRIMARY KEY,
@@ -262,4 +320,9 @@ export const schemaSql = [
   'CREATE INDEX IF NOT EXISTS auth_sessions_expiry ON auth_sessions (expires_at)',
   'CREATE INDEX IF NOT EXISTS auth_sessions_professional ON auth_sessions (professional_id)',
   'CREATE INDEX IF NOT EXISTS auth_sessions_patient ON auth_sessions (patient_account_id)',
+  identitySql,
+  ...entities.map(
+    (entity) =>
+      `ALTER TABLE ${entity.table} ADD COLUMN IF NOT EXISTS revision bigint NOT NULL DEFAULT 0`,
+  ),
 ].join(';\n');

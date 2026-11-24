@@ -1,0 +1,41 @@
+$ node scripts/require-test-db.cjs && pnpm test
+$ pnpm --filter @nutritrack/api test
+$ pnpm build && node scripts/run-tests.cjs
+$ tsc -p tsconfig.json
+✔ PostgreSQL: verificação, reset concorrente, MFA, exportação e revogação global (2387.6582ms)
+✔ produção: startup seguro, origem, cadastro genérico e cookie Secure (1263.9483ms)
+✔ autenticação, cadastro, avaliação, isolamento e conflito de agenda (1101.0002ms)
+▶ hardening: HTTP, atomicidade, integridade e isolamento
+  ✔ corpo incompleto não bloqueia health (268.7478ms)
+  ✔ PATCH recusado não altera estado (5.5274ms)
+  ✔ contratos rejeitam datas, medidas, status e null (9.4104ms)
+  ✔ edição/publicação exigem revisão atual (22.4314ms)
+  ✔ reativação de consulta revalida conflito (19.6187ms)
+✔ hardening: HTTP, atomicidade, integridade e isolamento (753.5232ms)
+✔ limite compartilhado, execução sem DDL e restauração criptografada em banco vazio (1829.6592ms)
+✔ papel restrito permite salvar dados e bloqueia DDL e alteração de snapshot (787.104ms)
+✔ migra JSONB, preserva versões, reinicia e impede sobrescrita concorrente (1097.5684ms)
+✔ importação de arquivo e rollback de migração inválida (2468.6103ms)
+✔ fluxos originais da API executados no PostgreSQL relacional (2796.5185ms)
+✔ sessões compartilhadas, expiração, logout e revogação por troca de senha (1150.6469ms)
+✔ fluxos da API pela entrada serverless da Vercel (10217.4042ms)
+✔ bloqueia origem externa, formulário simples e limites sem confiar em x-forwarded-for (3.3445ms)
+✔ backup criptografado exige chave correta e rejeita adulteração (2.1416ms)
+✔ PG scoped reads, independent writers, row CAS and cross-table identity uniqueness (755.5944ms)
+✔ PG migration preserves v1 records and is repeatable (611.6988ms)
+✔ PG outbox: authenticated encryption, retry eligibility and restore invalidation (1296.603ms)
+✔ HTTP: two professionals cannot export, alter or delete each other; pagination and aggregation (1297.6492ms)
+✔ account deletion is self-only, refuses clinical links; mail job rejects unauthenticated calls (1562.2359ms)
+✔ audit retention cannot be exhausted by another professional (1468.9219ms)
+✔ security epoch rejects a login racing MFA/global session revocation (932.8297ms)
+✔ explicit migration CLI initializes empty database and is idempotent (1171.2387ms)
+✔ appointment overlap is checked under tenant lock even without audit rows (970.3933ms)
+✔ TOTP RFC6238 SHA1 vector and counter replay protection (3.0165ms)
+ℹ tests 28
+ℹ suites 0
+ℹ pass 28
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 20693.5738

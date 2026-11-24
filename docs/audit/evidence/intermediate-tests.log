@@ -1,0 +1,37 @@
+$ node scripts/require-test-db.cjs && pnpm test
+$ pnpm --filter @nutritrack/api test
+$ pnpm build && node --test
+$ tsc -p tsconfig.json
+✔ PostgreSQL: verificação, reset concorrente, MFA, exportação e revogação global (3518.6907ms)
+✔ produção: startup seguro, origem, cadastro genérico e cookie Secure (2061.8498ms)
+✔ autenticação, cadastro, avaliação, isolamento e conflito de agenda (663.5712ms)
+▶ hardening: HTTP, atomicidade, integridade e isolamento
+  ✔ corpo incompleto não bloqueia health (268.3051ms)
+  ✔ PATCH recusado não altera estado (5.8218ms)
+  ✔ contratos rejeitam datas, medidas, status e null (7.4653ms)
+  ✔ edição/publicação exigem revisão atual (17.1207ms)
+  ✔ reativação de consulta revalida conflito (15.4399ms)
+✔ hardening: HTTP, atomicidade, integridade e isolamento (734.5753ms)
+✔ test\helpers.cjs (170.8318ms)
+✔ limite compartilhado, execução sem DDL e restauração criptografada em banco vazio (1441.1722ms)
+✔ papel restrito permite salvar dados e bloqueia DDL e alteração de snapshot (1807.5331ms)
+✔ migra JSONB, preserva versões, reinicia e impede sobrescrita concorrente (1489.5836ms)
+✔ importação de arquivo e rollback de migração inválida (1712.9065ms)
+✔ fluxos originais da API executados no PostgreSQL relacional (2612.4229ms)
+✔ sessões compartilhadas, expiração, logout e revogação por troca de senha (711.6867ms)
+✔ fluxos da API pela entrada serverless da Vercel (1645.3554ms)
+✔ bloqueia origem externa, formulário simples e limites sem confiar em x-forwarded-for (3.5505ms)
+✔ backup criptografado exige chave correta e rejeita adulteração (2.4257ms)
+✔ PG scoped reads, independent writers, row CAS and cross-table identity uniqueness (1020.5442ms)
+✔ PG migration preserves v1 records and is repeatable (629.4399ms)
+✔ PG outbox: authenticated encryption, retry eligibility and restore invalidation (3100.5571ms)
+✔ HTTP: two professionals cannot export, alter or delete each other; pagination and aggregation (1765.4665ms)
+✔ account deletion is self-only, refuses clinical links; mail job rejects unauthenticated calls (1474.4685ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11747.4595

@@ -35,3 +35,6 @@ Desktop.ini
 .tmp-pg-check/
 backups/
 *.ntbackup
+
+playwright-report/
+test-results/
