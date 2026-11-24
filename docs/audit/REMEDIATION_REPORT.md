@@ -4,7 +4,7 @@
 
 ## Correções implementadas
 
-O rastreador individualiza14 itens:13 da reauditoria e uma corrida de autenticação encontrada durante a implementação. Onze itens estão validados no escopo local; dois dependem de operação/jurídico e um gate depende de CI remoto.
+O rastreador individualiza14 itens:13 da reauditoria e uma corrida de autenticação encontrada durante a implementação. Doze itens validados no escopo citado, incluindo CI Linux; dois dependem de operação/jurídico.
 
 - Parser HTTP limitado por bytes e5s antes da fila; máximo64 pendências, health com concorrência limitada e endpoints live/ready. Requests parciais não bloqueiam domínio; erros retornam4xx/503 seguros. Timeout SQL10s, conexão10s e transação ociosa15s. Mutações produtivas exigem origem explícita/JSON; cookies e headers seguros preservados.
 - Validação antes de alterar dados, rollback em memória para erros, respostas somente após persistência. NaN/datas impossíveis/status arbitrários e refeições null recusados; duração de consulta validada. Recuperação de erro não mascara falhas SQL nem devolve stack.
@@ -33,6 +33,8 @@ Nodemailer é a nova dependência de runtime necessária para SMTP real. ESLint/
 
 Build preserva a compilação direta do TypeScript usada pela Vercel e acrescenta somente empacotamento de políticas. Módulos novos de HTTP, validação, conta, crypto, mail/worker, legal e migração recebem typecheck estrito; o legado continua incremental com strict:false. CI preparado com PostgreSQL obrigatório, ações por SHA, token read-only e checkout sem credenciais persistidas. Nenhum deploy/segredo de produção faz parte do workflow.
 
-Resultados finais, métricas e limitações em FINAL_TEST_RESULTS; lista de arquivos em evidence/changed-files.txt. Reauditoria não confirmou nova leitura entre profissionais ou API clínica anônima indevida. Bloqueadores restantes: SMTP/políticas/credenciais/grants/monitoramento/recuperação do ambiente real e execução remota do CI. Preparação técnica local não é PRODUCTION READY.
+Resultados finais, métricas e limitações em FINAL_TEST_RESULTS; lista de arquivos em evidence/changed-files.txt. Reauditoria não confirmou nova leitura entre profissionais ou API clínica anônima indevida. Bloqueadores restantes: SMTP/políticas/credenciais/grants/monitoramento/recuperação do ambiente real e homologação do pacote Vercel. Preparação técnica local não é PRODUCTION READY.
 
 Compatibilidade de rollout: marcador global de revisão v1 mantido, atualizado primeiro na ordem de locks para evitar inversão com instâncias antigas. Pode serializar commits breves; sem promessa de escala de escrita. A auditoria é ordenada por data e não regrava eventos antigos só por mudança de posição.
+
+CI remoto: [run45396373697](https://github.com/GiovannaSGuerrera/nutritrak/actions/runs/45396373697) aprovado para o commit2db9fa5,sem deploy. Arquivos da branch pública correspondem à árvore local verificada.

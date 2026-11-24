@@ -1,6 +1,6 @@
 # Segurança final — main PostgreSQL endurecida
 
-24/11/2026. Fontes locais,HTTP direto,PostgreSQL16 descartável e Chromium;sem pentest/host real. Baseline13itens;novo MAIN-014 encontrado/corrigido.11itens locais validados,1CI implementado não executado remotamente,2HIGH externos bloqueados. Nenhum CRITICAL conhecido ou API clínica anônima indevida identificado no código reauditado. Não é certificação de ausência universal de vulnerabilidade.
+24/11/2026. Fontes locais,HTTP direto,PostgreSQL16 descartável e Chromium;sem pentest/host real. Baseline13itens;novo MAIN-014 encontrado/corrigido.12itens validados,incluindo CI Linux,2HIGH externos bloqueados. Nenhum CRITICAL conhecido ou API clínica anônima indevida identificado no código reauditado. Não é certificação de ausência universal de vulnerabilidade.
 
 ## Autenticação, autorização e isolamento
 
@@ -72,10 +72,12 @@ Total:51 métodos/rotas canônicos. Estáticos GET/HEAD resolvem somente public;
 
 ## Testes, dados e operação
 
-28casos Node/PG e2E2E aprovados;linters/tipos/build e upgrade/restore locais. Outbox AESGCM com TLS/retries e seleção elegível;primeiro envio fora da fila clínica,depois do commit. Retry exige executor real configurado e entrega real ainda não foi comprovada. Não registrar destinatários/tokens/body/URL em logs. Audit com identificadores necessários e retenção90dias configurável;um usuário não expulsa eventos de outro por limite global.
+28 casos Node/PG e2 E2E aprovados;linters/tipos/build e upgrade/restore locais. Outbox AESGCM com TLS/retries e seleção elegível;primeiro envio fora da fila clínica,depois do commit. Retry exige executor real configurado e entrega real ainda não foi comprovada. Não registrar destinatários/tokens/body/URL em logs. Audit com identificadores necessários e retenção90dias configurável;um usuário não expulsa eventos de outro por limite global.
 
 Backup cifrado preserva dados e invalida links/outbox/sessões no restore em destino vazio. Não impede retenção de informações em backups/legacy_snapshot anteriores;reconciliar exclusões é procedimento obrigatório do operador. Exportações usam projeções próprias e não incluem credenciais. Exclusão automática de prontuário não implementada por decisão de retenção ainda pendente,sem declaração LGPD integral.
 
 Scan atual de formatos de segredo e revisão de alterações sem correspondência privada conhecida;limita-se ao escopo registrado,não prova ausência em serviços/histórico externos. Se descobrir exposição,revogar/rotacionar no emissor,invalidar sessões e revisar acessos;não basta apagar arquivo. pnpm audit final zero advisories conhecidos;consulta temporal,sem garantia futura ou scan do host.
 
-Riscos externos bloqueadores:SMTP/chaves/configuração jurídica,conta runtime/grants,CI/pacote remoto,backup independente/alertas/restore real,homologação clínica/capacidade. Budgets1MB/registro e32MiB/profissional/páginas200 não são SLA. Legado TS ainda incremental;Axe/browser escopados. Código não foi publicado na main/produção nem configurações reais alteradas nesta execução.
+Riscos externos bloqueadores:SMTP/chaves/configuração jurídica,conta runtime/grants,pacote Vercel remoto,backup independente/alertas/restore real,homologação clínica/capacidade. Budgets1MB/registro e32MiB/profissional/páginas200 não são SLA. Legado TS ainda incremental;Axe/browser escopados. Código não foi publicado na main/produção nem configurações reais alteradas nesta execução.
+
+CI confirmado no GitHub run45396373697,sem segredos de produção e sem deploy. Revisão do workflow:push/pull_request,contents:read,actionsSHA,checkout sem credencial persistida;nenhum pull_request_target/interpolação de texto não confiável/privilege escalation identificado.

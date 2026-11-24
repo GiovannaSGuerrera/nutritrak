@@ -4,7 +4,7 @@
 
 | Verificação | Antes | Depois |
 |---|---|---|
-| Suíte Node com PG |10pass |28pass,0fail,0skip |
+| Suíte Node com PG |10pass |28pass,0 fail,0 skip |
 | Default sem PG |3pass/7skip |Modo local continua possível; CI recusa ausência de PG |
 | Lint semântico |Ausente |ESLint aprovado em API/TS/testes/frontend/scripts |
 | Formatação |12 arquivos falhavam |Prettier aprovado |
@@ -13,7 +13,7 @@
 | Migração |Testes de importação/rollback |Upgrade v1→hardening preserva dados, repete e CLI inicializa vazio |
 | Backup/restore |GCM/destino vazio já testados |Novas entidades incluídas; tokens/outbox não reativados |
 | Dependências |Zero advisories conhecidos |Zero conhecidos no pnpm audit final |
-| CI Linux/Vercel novo release |Não executado |Workflow preparado, execução remota/deploy NÃO realizados |
+| CI Linux / Vercel novo release |Não executado |GitHub CI aprovado;pacote Vercel/deploy NÃO realizados |
 
 28 são casos reportados pelo runner, incluindo subtestes; não28 fluxos independentes nem porcentagem de cobertura. Helpers não são casos. Nenhum percentual global foi obtido. Código legado não ficou integralmente tipado/reescrito.
 
@@ -45,6 +45,10 @@ Mesma fixture PostgreSQL:10 profissionais,100 pacientes e100 metas cada, um usu�
 
 ## Limitações
 
-Sem SMTP real, CI remoto, deploy novo, scan de imagem/host, disaster recovery do Neon/Vercel ou homologação clínica. Browser cobre fluxos citados e Axe na conta, sem revisão humana assistiva, todos os navegadores ou todas as telas. Testes de exclusão não removem prontuários reais; políticas/retencão clínica e restauração após pedidos de exclusão exigem responsável. Novos gates produtivos devem ser configurados antes de publicar, ou a inicialização recusará execução.
+Sem SMTP real, deploy novo, scan de imagem/host, disaster recovery do Neon/Vercel ou homologação clínica. Browser cobre fluxos citados e Axe na conta, sem revisão humana assistiva, todos os navegadores ou todas as telas. Testes de exclusão não removem prontuários reais; políticas/retencão clínica e restauração após pedidos de exclusão exigem responsável. Novos gates produtivos devem ser configurados antes de publicar, ou a inicialização recusará execução.
 
 A reauditoria acrescentou também um teste de sobreposição de agenda em duas conexões, com audit vazio, para provar que o lock/consulta de conflito no commit não dependem de colisão incidental de eventos de auditoria.
+
+## CI Linux aprovado
+
+[Run45396373697](https://github.com/GiovannaSGuerrera/nutritrak/actions/runs/45396373697),commit2db9fa5:checks de instalação/lint/tipos/build/test:ci/E2E/audit concluídos com sucesso em ubuntu-latest com PostgreSQL16. Evidência em remote-ci.json. Pacote e configuração Vercel de produção não foram homologados;deploy automático da branch de verificação está desabilitado.
