@@ -1,0 +1,139 @@
+$ pnpm --filter @nutritrack/api test
+$ pnpm build && node --test
+$ tsc -p tsconfig.json
+✔ autenticação, cadastro, avaliação, isolamento e conflito de agenda (468.6498ms)
+✖ limite compartilhado, execução sem DDL e restauração criptografada em banco vazio (8.0816ms)
+✖ papel restrito permite salvar dados e bloqueia DDL e alteração de snapshot (4.1854ms)
+✖ migra JSONB, preserva versões, reinicia e impede sobrescrita concorrente (2.3265ms)
+✖ importação de arquivo e rollback de migração inválida (1.6444ms)
+✖ fluxos originais da API executados no PostgreSQL relacional (1.5457ms)
+✖ sessões compartilhadas, expiração, logout e revogação por troca de senha (1.4697ms)
+✖ fluxos da API pela entrada serverless da Vercel (1.7538ms)
+✔ bloqueia origem externa, formulário simples e limites sem confiar em x-forwarded-for (2.09ms)
+✔ backup criptografado exige chave correta e rejeita adulteração (1.4304ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 3
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 557.4606
+
+✖ failing tests:
+
+test at test\postgres.test.js:12:1
+✖ limite compartilhado, execução sem DDL e restauração criptografada em banco vazio (8.0816ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:16:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+
+test at test\postgres.test.js:67:1
+✖ papel restrito permite salvar dados e bloqueia DDL e alteração de snapshot (4.1854ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:71:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+
+test at test\postgres.test.js:195:1
+✖ migra JSONB, preserva versões, reinicia e impede sobrescrita concorrente (2.3265ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:199:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+
+test at test\postgres.test.js:264:1
+✖ importação de arquivo e rollback de migração inválida (1.6444ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:265:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+
+test at test\postgres.test.js:283:1
+✖ fluxos originais da API executados no PostgreSQL relacional (1.5457ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:287:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+
+test at test\postgres.test.js:304:1
+✖ sessões compartilhadas, expiração, logout e revogação por troca de senha (1.4697ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:308:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+
+test at test\postgres.test.js:362:1
+✖ fluxos da API pela entrada serverless da Vercel (1.7538ms)
+  Error: connect ECONNREFUSED 127.0.0.1:55489
+      at C:\Users\giuse\Desktop\NutriCare\.hardening-main\node_modules\.pnpm\pg-pool@3.14.0_pg@8.23.1\node_modules\pg-pool\index.js:45:11
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async isolatedDatabase (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:131:3)
+      at async TestContext.<anonymous> (C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api\test\postgres.test.js:363:3)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    errno: -4078,
+    code: 'ECONNREFUSED',
+    syscall: 'connect',
+    address: '127.0.0.1',
+    port: 55489
+  }
+C:\Users\giuse\Desktop\NutriCare\.hardening-main\apps\api:
+[ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL] @nutritrack/api@0.2.0 test: `pnpm build && node --test`
+Exit status 1
+[ELIFECYCLE] Test failed. See above for more details.

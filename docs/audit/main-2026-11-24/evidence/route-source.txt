@@ -1,0 +1,32 @@
+299:  if (req.method === 'GET' && url.pathname === '/api/me') {
+305:  if (req.method === 'POST' && url.pathname === '/api/patient/invitations/validate') {
+327:  if (req.method === 'POST' && url.pathname === '/api/patient/activate') {
+406:  if (req.method === 'POST' && url.pathname === '/api/patient/login') {
+434:  if (req.method === 'POST' && url.pathname === '/api/patient/password-resets/validate') {
+455:  if (req.method === 'POST' && url.pathname === '/api/patient/password-resets/complete') {
+487:  if (req.method === 'POST' && url.pathname === '/api/patient/logout') {
+496:  if (req.method === 'GET' && url.pathname === '/api/patient/me') {
+506:  if (req.method === 'POST' && url.pathname === '/api/register') {
+548:  if (req.method === 'POST' && url.pathname === '/api/login') {
+570:  if (req.method === 'POST' && url.pathname === '/api/logout') {
+583:  if (req.method === 'GET' && url.pathname === '/api/dashboard') {
+624:  if (req.method === 'GET' && url.pathname === '/api/patients')
+630:  if (req.method === 'POST' && url.pathname === '/api/patients') {
+652:  if (patientMatch && req.method === 'PATCH') {
+664:  if (patientMatch && req.method === 'GET') {
+683:  if (inviteMatch && req.method === 'POST') {
+720:  if (resetMatch && req.method === 'POST') {
+748:  if (req.method === 'GET' && url.pathname === '/api/assessments') {
+755:  if (req.method === 'POST' && url.pathname === '/api/assessments') {
+793:  if (req.method === 'POST' && url.pathname === '/api/appointments') {
+827:  if (req.method === 'PATCH' && url.pathname.startsWith('/api/appointments/')) {
+839:  if (req.method === 'POST' && url.pathname === '/api/goals') {
+861:  if (req.method === 'PATCH' && url.pathname.startsWith('/api/goals/')) {
+875:  if (req.method === 'GET' && url.pathname === '/api/meal-plans') {
+904:  if (req.method === 'POST' && url.pathname === '/api/meal-plans') {
+929:  if (mealPlanMatch && req.method === 'GET') {
+936:  if (draftMatch && req.method === 'PUT') {
+965:  if (publishMatch && req.method === 'POST') {
+984:  if (req.method === 'GET' && url.pathname === '/api/appointments') {
+1047:        if (req.method === 'GET' && pathname === '/api/health') {
+1051:        if (req.method === 'POST' && authRoute(pathname)) {

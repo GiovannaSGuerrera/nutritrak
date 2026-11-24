@@ -1,0 +1,2 @@
+$ pnpm --filter @nutritrack/api build
+$ tsc -p tsconfig.json

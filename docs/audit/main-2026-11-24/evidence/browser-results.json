@@ -1,0 +1,17 @@
+{
+  "browser": "Chromium1255 via agent-browser isolated session reaudit-0b89a24ec7b7",
+  "target": "local synthetic server only",
+  "flows": [
+    "register",
+    "create patient",
+    "create plan with name/objective",
+    "save draft",
+    "reopen draft"
+  ],
+  "savedName": "Plano Sintético Salvo",
+  "reopenedName": "",
+  "reopenedObjective": "",
+  "defectConfirmed": true,
+  "scope": "Desktop only; no full E2E/accessibility audit",
+  "closed": true
+}

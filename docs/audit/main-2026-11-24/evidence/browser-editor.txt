@@ -1,0 +1,25 @@
+- button "Fechar" [ref=e19]
+- heading "Editar rascunho" [level=2, ref=e80]
+- form "Nome do planoObjetivo do planoInício da vigênciaData de revisãoOrientações geraisRefeiçõesValores nu" [ref=e81] clickable [onclick]
+  - textbox "Nome do plano" [required, ref=e82]
+  - textbox "Objetivo do plano" [ref=e83]
+  - spinbutton "Dia Dia" [ref=e95]: 0
+  - spinbutton "Mês Mês" [ref=e96]: 0
+  - spinbutton "Ano Ano" [ref=e97]: 0
+  - button "Mostrar seletor de datas Mostrar seletor de datas" [ref=e89] hint="id:picker"
+  - spinbutton "Dia Dia" [ref=e98]: 0
+  - spinbutton "Mês Mês" [ref=e99]: 0
+  - spinbutton "Ano Ano" [ref=e100]: 0
+  - button "Mostrar seletor de datas Mostrar seletor de datas" [ref=e90] hint="id:picker"
+  - textbox "Orientações gerais" [ref=e84]
+  - heading "Refeições" [level=3, ref=e85]
+  - button "＋ Adicionar refeição" [ref=e86]
+  - button "Remover" [ref=e91]
+  - textbox "Nome da refeição" [required, ref=e92]: Refeição teste
+  - spinbutton "Horas Horas" [ref=e102]: 0
+  - spinbutton "Minutos Minutos" [ref=e103]: 0
+  - button "Mostrar seletor de horário Mostrar seletor de horário" [ref=e101]
+  - textbox "Orientações desta refeição" [ref=e93]
+  - button "＋ Adicionar alimento" [ref=e94]
+  - button "Cancelar" [ref=e87]
+  - button "Salvar rascunho" [ref=e88]

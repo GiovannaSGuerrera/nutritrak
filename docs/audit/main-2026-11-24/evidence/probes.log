@@ -1,0 +1,96 @@
+{
+  "postgres": {
+    "registration": [
+      201,
+      201
+    ],
+    "duplicateRegistration": [
+      201,
+      409
+    ],
+    "parallelResetStatuses": [
+      200,
+      409
+    ],
+    "crossTenantReadPatch": [
+      404,
+      404
+    ],
+    "invalidPatch": {
+      "status": 400,
+      "nameAfter": "Original synthetic"
+    },
+    "invalidAssessment": {
+      "status": 201,
+      "waist": null,
+      "date": "2026-99-99"
+    },
+    "malformedMeal": 500,
+    "stalePlan": {
+      "updates": [
+        200,
+        200
+      ],
+      "finalObjective": "Stale edit",
+      "publishInvalidRevision": 200
+    },
+    "agenda": {
+      "replacement": 201,
+      "reactivation": 200
+    },
+    "arbitraryPatientStatus": 200,
+    "missingAccountRoutes": [
+      404,
+      401
+    ],
+    "partialBodyBlocksHealth200ms": true,
+    "healthAfterCancellation": 200,
+    "databaseAssessment": {
+      "waist": "NaN",
+      "date": "2026-99-99"
+    }
+  },
+  "jsonDevelopment": {
+    "registration": [
+      201,
+      201
+    ],
+    "parallelResetStatuses": [
+      200,
+      410
+    ],
+    "crossTenantReadPatch": [
+      404,
+      404
+    ],
+    "invalidPatch": {
+      "status": 400,
+      "nameAfter": ""
+    },
+    "invalidAssessment": {
+      "status": 201,
+      "waist": null,
+      "date": "2026-99-99"
+    },
+    "malformedMeal": 500,
+    "stalePlan": {
+      "updates": [
+        200,
+        200
+      ],
+      "finalObjective": "Stale edit",
+      "publishInvalidRevision": 200
+    },
+    "agenda": {
+      "replacement": 201,
+      "reactivation": 200
+    },
+    "arbitraryPatientStatus": 200,
+    "missingAccountRoutes": [
+      404,
+      401
+    ],
+    "partialBodyBlocksHealth200ms": true,
+    "healthAfterCancellation": 200
+  }
+}

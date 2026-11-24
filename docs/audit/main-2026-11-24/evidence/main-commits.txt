@@ -1,0 +1,10 @@
+b759e77 docs: adiciona manual SQL e avaliação de migração para Supabase
+edfdf47 perf: reduz consultas e acelera entrada após cadastro
+92151fe docs: registra implantação e permissões aplicadas no Neon
+0efbd21 security: protege autenticação e prepara recuperação e privacidade
+b2d0f84 docs: simplifica apresentação do NutriTrack com linguagem mais natural
+aea7176 docs: esclarece acesso online e desenvolvimento local opcional
+0c26adb docs: atualiza README com publicação na Vercel e PostgreSQL no Neon
+0e92b5a fix: compile TypeScript directly in Vercel build
+7bb95be feat: prepare Vercel deployment with relational Postgres and shared sessions
+f65e25e feat: migrate API to TypeScript, add PostgreSQL storage and refresh frontend

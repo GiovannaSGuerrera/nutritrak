@@ -1,0 +1,13 @@
+{
+  "snapshot": "b759e773d9167e309d657066ec158a1bb1f698a2",
+  "findings": 13,
+  "severity": {
+    "HIGH": 4,
+    "MEDIUM": 7,
+    "LOW": 2
+  },
+  "apiRoutes": 31,
+  "trackedFilesScanned": 39,
+  "secretFormatMatches": [],
+  "limitations": "Current tracked tree only; not universal secret detection or complete history scan; no external credential validation"
+}

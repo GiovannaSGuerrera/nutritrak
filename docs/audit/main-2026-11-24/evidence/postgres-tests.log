@@ -1,0 +1,21 @@
+$ pnpm --filter @nutritrack/api test
+$ pnpm build && node --test
+$ tsc -p tsconfig.json
+✔ autenticação, cadastro, avaliação, isolamento e conflito de agenda (496.3886ms)
+✔ limite compartilhado, execução sem DDL e restauração criptografada em banco vazio (1612.7806ms)
+✔ papel restrito permite salvar dados e bloqueia DDL e alteração de snapshot (1013.5348ms)
+✔ migra JSONB, preserva versões, reinicia e impede sobrescrita concorrente (560.2012ms)
+✔ importação de arquivo e rollback de migração inválida (781.1858ms)
+✔ fluxos originais da API executados no PostgreSQL relacional (1638.4554ms)
+✔ sessões compartilhadas, expiração, logout e revogação por troca de senha (642.1197ms)
+✔ fluxos da API pela entrada serverless da Vercel (1444.3998ms)
+✔ bloqueia origem externa, formulário simples e limites sem confiar em x-forwarded-for (2.9011ms)
+✔ backup criptografado exige chave correta e rejeita adulteração (1.8216ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7899.6907

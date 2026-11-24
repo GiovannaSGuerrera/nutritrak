@@ -1,0 +1,197 @@
+{
+  "coverage": {
+    "criteria": {
+      "advisories": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "archived": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "binary_artifacts": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "code_review": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "dangerous_workflow": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "deprecated": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "downloads": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "install_script": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "provenance": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "publisher_concentration": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "security_policy": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "staleness": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      },
+      "token_permissions": {
+        "assessed_clean": 1,
+        "assessed_flagged": 0,
+        "unassessable": 0
+      }
+    },
+    "total_dependencies": 1
+  },
+  "dependencies": [
+    {
+      "dev": true,
+      "ecosystem": "npm",
+      "exists": true,
+      "flagged": [],
+      "name": "prettier",
+      "non_registry_reason": null,
+      "repo": "github.com/prettier/prettier",
+      "signals": {
+        "advisories": {
+          "detail": "no advisories recorded",
+          "state": "assessed_clean",
+          "value": []
+        },
+        "archived": {
+          "detail": "repository is active",
+          "state": "assessed_clean",
+          "value": false
+        },
+        "binary_artifacts": {
+          "detail": "Binary-Artifacts scores 10/10",
+          "state": "assessed_clean",
+          "value": 10
+        },
+        "code_review": {
+          "detail": "Code-Review scores 5/10",
+          "state": "assessed_clean",
+          "value": 5
+        },
+        "dangerous_workflow": {
+          "detail": "Dangerous-Workflow scores 10/10",
+          "state": "assessed_clean",
+          "value": 10
+        },
+        "deprecated": {
+          "detail": "not deprecated",
+          "state": "assessed_clean",
+          "value": false
+        },
+        "downloads": {
+          "detail": "195,716,287 downloads/week (normal volume)",
+          "state": "assessed_clean",
+          "value": 195716287
+        },
+        "install_script": {
+          "detail": "no install script",
+          "state": "assessed_clean",
+          "value": false
+        },
+        "provenance": {
+          "detail": "no publish provenance",
+          "state": "assessed_clean",
+          "value": false
+        },
+        "publisher_concentration": {
+          "detail": "10 human publishers hold publish rights",
+          "state": "assessed_clean",
+          "value": [
+            "jlongster",
+            "lydell",
+            "thorn0",
+            "vjeux",
+            "fisker",
+            "suchipi",
+            "duailibe",
+            "ikatyang",
+            "azz",
+            "sosukesuzuki",
+            "prettier-bot"
+          ]
+        },
+        "security_policy": {
+          "detail": "publishes a security policy",
+          "state": "assessed_clean",
+          "value": true
+        },
+        "staleness": {
+          "detail": "pushed 0 days ago",
+          "state": "assessed_clean",
+          "value": "2026-11-23T12:49:58Z"
+        },
+        "token_permissions": {
+          "detail": "Token-Permissions scores 0/10",
+          "state": "assessed_clean",
+          "value": 0
+        }
+      },
+      "version": "3.10.1",
+      "version_source": "latest-release"
+    }
+  ],
+  "ecosystems": {
+    "npm": 1
+  },
+  "notes": [
+    "cache directory ownership was not verified: os.getuid is POSIX-only, so a cache at C:\\Users\\giuse\\AppData\\Local\\Temp\\supply-chain-risk-auditor-cache owned by another user would not be detected on this platform. Keep the cache under your own user profile, or pass --cache with a private path.",
+    "gh is not authenticated. GitHub allows 60 requests/hour unauthenticated against 5000 authenticated, so repository signals may be unassessable.",
+    "pnpm-lock.yaml is present but not read: direct-dependency versions fall back to manifest pins or the latest release, and its transitive tree was not examined.",
+    "1 dependencies are specified as a version range with no lockfile, so their advisories were matched against the current latest release rather than against what this project installs \u2014 commit a lockfile for an exact answer: prettier",
+    "Optional tooling detected: npm. Not installed, so not used: bundler-audit, cargo-audit, osv-scanner, pip-audit.",
+    "Direct dependencies only. Advisories attach to the package that ships the affected code, so an umbrella package can look clean while its components are not \u2014 rails 5.0.0 reports 0 advisories where actionpack 5.0.0 reports 10. Transitive dependencies were not examined: no lockfile resolves the transitive tree (package-lock.json, uv.lock, or a go 1.17+ go.mod).",
+    "HTTP sources: 6 fetched, 1 served from cache (oldest 0.0h old), 7 refetched as stale, 0 unavailable offline, 0 errors."
+  ],
+  "scan": {
+    "commit": null,
+    "manifests": [
+      "package.json"
+    ],
+    "path": ".",
+    "scanned_at": "2026-11-24T11:41:41+00:00",
+    "subject": ".hardening-main"
+  },
+  "target": ".",
+  "transitive": {
+    "checked": 0,
+    "examined": false,
+    "excluded_direct": 0,
+    "flagged": [],
+    "lockfile_entries": 0,
+    "reason": "no lockfile resolves the transitive tree (package-lock.json, uv.lock, or a go 1.17+ go.mod)",
+    "sources": [],
+    "total": 0,
+    "unverifiable": []
+  }
+}
