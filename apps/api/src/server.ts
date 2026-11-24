@@ -1,6 +1,7 @@
 import { accountRoutes, issueToken } from './account-security';
 import * as totp from './totp';
 import { readPolicy } from './legal';
+import { emailEnabled, verificationRequired, legalDocumentsRequired } from './release-mode';
 import type { AccountContext, Store, User } from './contracts';
 import { readBody, bufferedResponse } from './http-safety';
 import { object, dateOnly, patientFields, pageList, revision } from './validation';
@@ -88,9 +89,11 @@ async function loadStore() {
       !/^[a-f\d]{64}$/i.test(process.env.MAIL_ENCRYPTION_KEY || '')
     )
       throw new Error('Configure APP_ORIGIN HTTPS e MAIL_ENCRYPTION_KEY.');
-    if (process.env.DB_AUTO_MIGRATE !== 'false' || !process.env.SMTP_HOST || !process.env.MAIL_FROM)
-      throw new Error('Produção requer migração explícita e SMTP configurado.');
-    await Promise.all([readPolicy('privacy'), readPolicy('terms')]);
+    if (process.env.DB_AUTO_MIGRATE !== 'false')
+      throw new Error('Produção requer migração explícita.');
+    if (emailEnabled() && (!process.env.SMTP_HOST || !process.env.MAIL_FROM))
+      throw new Error('Configure SMTP ou EMAIL_ENABLED=false.');
+    if (legalDocumentsRequired()) await Promise.all([readPolicy('privacy'), readPolicy('terms')]);
   }
   if (postgres) {
     store = normalizeStore(await postgres.initialize(readLegacyStore, '__anonymous__'));
@@ -227,7 +230,8 @@ function safeUser(u) {
     emailVerified: !!u.emailVerified,
     mfaEnabled: !!u.mfaSecret,
     securityFeatures: true,
-    verificationRequired: process.env.NODE_ENV === 'production',
+    verificationRequired: verificationRequired(),
+    emailDeliveryEnabled: emailEnabled(),
   };
 }
 function validText(v: unknown, max = 5000): v is string {
@@ -595,7 +599,11 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
           issueToken(store as unknown as Store, existing as User, 'verify');
           await persist();
         }
-        return json(res, 202, { message: 'Se elegível, você receberá as instruções por e-mail.' });
+        return json(res, 202, {
+          message: emailEnabled()
+            ? 'Se elegível, você receberá as instruções por e-mail.'
+            : 'Se já possui uma conta, entre com sua senha.',
+        });
       }
       return json(res, 409, { error: 'Já existe uma conta com esse e-mail.' });
     }
@@ -613,7 +621,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     if (process.env.NODE_ENV !== 'production')
       issueToken(store as unknown as Store, u as User, 'verify');
     audit(u.id, 'account_created', 'user', u.id);
-    if (process.env.NODE_ENV === 'production') {
+    if (verificationRequired()) {
       issueToken(store as unknown as Store, u as User, 'verify');
       await persist();
       return json(res, 202, { message: 'Se elegível, você receberá as instruções por e-mail.' });
@@ -692,7 +700,7 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
 
   const u = await userFor(req);
   if (!u) return json(res, 401, { error: 'Autenticação necessária' });
-  if (process.env.NODE_ENV === 'production' && !u.emailVerified)
+  if (verificationRequired() && !u.emailVerified)
     return json(res, 403, { error: 'Confirme seu e-mail para acessar os dados clínicos.' });
   const uid = u.id;
   const exportMatch = url.pathname.match(/^\/api\/patients\/([^/]+)\/export$/);

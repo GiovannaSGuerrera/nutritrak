@@ -53,3 +53,7 @@ CI remoto aprovado:run45396373697 em Linux,commit2db9fa5. Nota100 da categoria t
 Na ordem dos cinco pontos: aplicação=injection/encoding/origem-headers/abuso/atomicidade; APIs=auth privada/projeção de campos/schemas/limites/contrato único; auth=hash/TTL/autorização/recuperação/email-MFA; isolamento=identidade do tenant/ownership/filtros backend/FKs/defesa DB; banco=schema/constraints/transações/índices/migração-restore; qualidade=workspaces/módulos/validação/erros/consistência; performance=assets/pool/paginação/carga/budgets; infraestrutura=perfil deploy/health-config/CI/restore/TLS-alertas; privacidade=minimização/acesso/direitos/retenção/política operável; UX=estados/formulários/responsividade/erros/acessibilidade; testes=Node/isolamento/PG/concorrência/CI-E2E-restore; comercial=fluxos/escopo/operação/privacidade/recuperação-suporte.
 
 Baseline retrospectiva dos cinco pontos, na mesma ordem das categorias:20/20/10/10/10;20/20/0/0/20;20/20/20/0/0;20/20/10/20/10;10/20/20/10/20;20/10/10/10/10;10/10/0/0/10;20/20/0/10/0;20/20/0/0/0;20/10/20/10/10;20/20/20/10/0;20/20/0/0/0.
+
+## Atualização de escopo: publicação sem SMTP
+
+A decisão posterior do responsável adia SMTP, documentos legais e operação de backups e autoriza produção. Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md) para comportamento implementado, validações atuais e bloqueio de acesso à equipe Vercel. As conclusões históricas acima não comprovam este novo modo em produção. Há 31 testes aprovados e 2 E2E; migração Neon 2 ainda pendente. Não houve deploy nesta etapa.

@@ -38,3 +38,7 @@ Resultados finais, métricas e limitações em FINAL_TEST_RESULTS; lista de arqu
 Compatibilidade de rollout: marcador global de revisão v1 mantido, atualizado primeiro na ordem de locks para evitar inversão com instâncias antigas. Pode serializar commits breves; sem promessa de escala de escrita. A auditoria é ordenada por data e não regrava eventos antigos só por mudança de posição.
 
 CI remoto: [run45396373697](https://github.com/GiovannaSGuerrera/nutritrak/actions/runs/45396373697) aprovado para o commit2db9fa5,sem deploy. Arquivos da branch pública correspondem à árvore local verificada.
+
+## Atualização de escopo: publicação sem SMTP
+
+A decisão posterior do responsável adia SMTP, documentos legais e operação de backups e autoriza produção. Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md) para comportamento implementado, validações atuais e bloqueio de acesso à equipe Vercel. As conclusões históricas acima não comprovam este novo modo em produção. Há 31 testes aprovados e 2 E2E; migração Neon 2 ainda pendente. Não houve deploy nesta etapa.

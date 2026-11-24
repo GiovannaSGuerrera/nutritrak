@@ -1,6 +1,7 @@
 import { Pool } from 'pg';
 import * as nodemailer from 'nodemailer';
 import { decrypt } from './mail';
+import { emailEnabled } from './release-mode';
 import type { EncryptedMessage } from './contracts';
 
 export async function deliverBatch(
@@ -49,6 +50,7 @@ export async function deliverBatch(
   return delivered;
 }
 export async function sendPending(pool: Pool, maximum = 2) {
+  if (!emailEnabled()) return 0;
   if (!process.env.SMTP_HOST || !process.env.MAIL_FROM) return 0;
   const transport = nodemailer.createTransport({
     host: process.env.SMTP_HOST,

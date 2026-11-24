@@ -1,5 +1,6 @@
 import type { User, Store, AccountContext } from './contracts';
 import * as crypto from 'node:crypto';
+import { emailEnabled, verificationRequired } from './release-mode';
 function scrypt(password: string, salt: string, length: number): Promise<Buffer> {
   return new Promise((resolve, reject) =>
     crypto.scrypt(password, salt, length, (error, key) => (error ? reject(error) : resolve(key))),
@@ -19,6 +20,7 @@ async function revoke(sessions: AccountContext['sessions'], userId: string) {
 }
 
 function issueToken(store: Store, user: User, purpose: string) {
+  if (!emailEnabled()) return;
   const now = Date.now();
   store.authTokens = store.authTokens.filter(
     (token) =>
@@ -51,6 +53,22 @@ function issueToken(store: Store, user: User, purpose: string) {
 async function accountRoutes(context: AccountContext) {
   const { req, res, store, sessions, user, body, json, persist, audit } = context;
   const route = new URL(req.url || '/', 'http://localhost').pathname;
+  if (
+    !emailEnabled() &&
+    req.method === 'POST' &&
+    [
+      '/api/auth/password-reset/request',
+      '/api/auth/password-reset/complete',
+      '/api/auth/verification/request',
+      '/api/auth/verification/complete',
+    ].includes(route)
+  ) {
+    json(res, 503, {
+      error:
+        'Envio de e-mail indisponível. Recuperação de senha e verificação de e-mail não estão disponíveis.',
+    });
+    return true;
+  }
   if (req.method === 'POST' && route === '/api/auth/password-reset/request') {
     const data = await body(req),
       email = String(data.email || '')
@@ -130,11 +148,7 @@ async function accountRoutes(context: AccountContext) {
     json(res, 202, { message: 'Confira seu e-mail.' });
     return true;
   }
-  if (
-    process.env.NODE_ENV === 'production' &&
-    route.startsWith('/api/account/mfa') &&
-    !user.emailVerified
-  ) {
+  if (verificationRequired() && route.startsWith('/api/account/mfa') && !user.emailVerified) {
     json(res, 403, { error: 'Confirme seu e-mail antes de configurar o segundo fator.' });
     return true;
   }

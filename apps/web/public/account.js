@@ -1,13 +1,19 @@
 /* Account security controls use the same origin/session and existing design system. */
+/* global state */
 async function accountSecurityPage() {
   document.querySelector('.sidebar')?.classList.remove('open');
   document.querySelector('#mobile-menu')?.setAttribute('aria-expanded', 'false');
   const root = document.querySelector('#content');
+  const deliveryNotice =
+    state.user.emailDeliveryEnabled === false
+      ? '<p role="status">Envio de e-mail indisponível. Não há recuperação de senha por e-mail; guarde sua senha e os códigos de recuperação do autenticador.</p>'
+      : '';
   root.innerHTML = `<section class="panel"><h1>Segurança e privacidade</h1><p>Exporte os dados da sua conta ou gerencie suas credenciais.</p><button class="button" id="export-account">Exportar meus dados</button><form id="account-password-form"><label>Senha atual<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>Nova senha<input name="password" type="password" minlength="12" maxlength="200" required autocomplete="new-password"></label><label>Código do autenticador (se ativo)<input name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="6"></label><label>Código de recuperação (alternativo)<input name="recoveryCode" autocomplete="off"></label><button class="button primary">Alterar senha e encerrar sessões</button></form><form id="account-privacy-form"><label>Confirme sua senha<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>Código do autenticador (se ativo)<input name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="6"></label><label>Código de recuperação (alternativo)<input name="recoveryCode" autocomplete="off"></label><button class="button">Solicitar exclusão de conta</button></form><p>Prontuários podem exigir retenção legal. A solicitação será registrada para avaliação.</p><p id="account-feedback" role="status" aria-live="polite"></p></section>`;
   root.insertAdjacentHTML(
     'beforeend',
     `<section class="panel"><h2>Autenticação em duas etapas</h2><p>Configure um aplicativo autenticador. Guarde os códigos de recuperação em local seguro.</p><form id="mfa-form"><label>Senha atual<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>Código do autenticador<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><button type="button" class="button" id="mfa-setup">Configurar autenticador</button><button type="submit" class="button primary">Confirmar ativação</button><button type="button" class="button" id="mfa-disable">Desativar duas etapas</button></form><pre id="mfa-information" role="status" aria-live="polite"></pre></section>`,
   );
+  root.insertAdjacentHTML('afterbegin', deliveryNotice);
   const mfaForm = document.querySelector('#mfa-form'),
     mfaInfo = document.querySelector('#mfa-information');
   const mfaData = () => Object.fromEntries(new FormData(mfaForm));

@@ -81,3 +81,7 @@ Scan atual de formatos de segredo e revisão de alterações sem correspondênci
 Riscos externos bloqueadores:SMTP/chaves/configuração jurídica,conta runtime/grants,pacote Vercel remoto,backup independente/alertas/restore real,homologação clínica/capacidade. Budgets1MB/registro e32MiB/profissional/páginas200 não são SLA. Legado TS ainda incremental;Axe/browser escopados. Código não foi publicado na main/produção nem configurações reais alteradas nesta execução.
 
 CI confirmado no GitHub run45396373697,sem segredos de produção e sem deploy. Revisão do workflow:push/pull_request,contents:read,actionsSHA,checkout sem credencial persistida;nenhum pull_request_target/interpolação de texto não confiável/privilege escalation identificado.
+
+## Atualização de escopo: publicação sem SMTP
+
+A decisão posterior do responsável adia SMTP, documentos legais e operação de backups e autoriza produção. Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md) para comportamento implementado, validações atuais e bloqueio de acesso à equipe Vercel. As conclusões históricas acima não comprovam este novo modo em produção. Há 31 testes aprovados e 2 E2E; migração Neon 2 ainda pendente. Não houve deploy nesta etapa.

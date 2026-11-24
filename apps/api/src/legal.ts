@@ -7,7 +7,11 @@ async function readPolicy(kind: string) {
     path.resolve(__dirname, 'legal', kind === 'privacy' ? 'privacy.md' : 'terms.md');
   if (!file || !['.md', '.txt'].includes(path.extname(file)))
     throw Object.assign(new Error('Documento ainda não configurado.'), { status: 503 });
-  const stat = await fs.stat(file);
+  const stat = await fs.stat(file).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === 'ENOENT')
+      throw Object.assign(new Error('Documento ainda não disponibilizado.'), { status: 503 });
+    throw error;
+  });
   if (!stat.isFile() || stat.size > 200000) throw new Error('Invalid policy document');
   const text = await fs.readFile(file, 'utf8');
   if (!text.trim()) throw new Error('Empty policy document');

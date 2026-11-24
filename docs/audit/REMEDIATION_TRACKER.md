@@ -32,3 +32,6 @@ Status permitidos:PENDING/IN_PROGRESS/IMPLEMENTED/VALIDATED/BLOCKED/NOT_APPLICAB
 14 itens:13 originais+1novo;12 VALIDATED,0 IMPLEMENTED,2 BLOCKED. Zero CRITICAL confirmado. Dois HIGH externos continuam bloqueadores. O item novo HIGH de corridaMFA está validado, não remanescente. Contagens incluem segurança/funcionalidade/prontidão, não CVEs. Pagamentos/assinaturas/upload/webhooks financeiros NOT_APPLICABLE por ausência na aplicação atual. Nenhuma credencial real comprometida conhecida identificada;eventual exposição exige revogar/rotacionar no emissor.
 
 CI remoto aprovado em Linux:run45396373697,commit2db9fa5. Branch isolada com deploy automático desabilitado;main/produção inalteradas.
+# Atualização de escopo — publicação sem SMTP
+
+Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md). Autorização de produção recebida; SMTP, documentos legais e operação de backups adiados pelo responsável. Isso não marca MAIN-008/009 como resolvidos. Novo modo sem e-mail validado (31 testes), migração Neon 2 pendente e acesso à equipe Vercel bloqueado por grant 403. Estado: implementação local VALIDATED; publicação BLOCKED por acesso externo.

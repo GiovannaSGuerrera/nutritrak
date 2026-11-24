@@ -46,3 +46,7 @@ Rollback de código: guardar deployment/commit anterior e configuração compat�
 Smoke em staging e depois no release autorizado: dois profissionais com GET/PATCH/DELETE/export cruzados negados; cookie antigo após reset/MFA/revoke negado; Origin inválida e body excessivo; plano stale428/409, publicação correta, conflito de agenda, páginas/metas, privacidade/termos, SMTP e restore. Não declarar capacidade de clientes sem carga representativa. Record1MB/orçamento32MiB por profissional/páginas200 são limites técnicos, não SLA ou plano comercial. Liberação comercial depende do parecer final e das ações externas.
 
 CI da branch de correções: git.deploymentEnabled desabilita deploy automático apenas em hardening/production-readiness-main, conforme [configuração oficial](https://vercel.com/docs/project-configuration/git-configuration). A main mantém o comportamento anterior. Isso permite validar CI sem criar Preview com segredos/banco do ambiente.
+
+## Atualização de escopo: publicação sem SMTP
+
+A decisão posterior do responsável adia SMTP, documentos legais e operação de backups e autoriza produção. Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md) para comportamento implementado, validações atuais e bloqueio de acesso à equipe Vercel. As conclusões históricas acima não comprovam este novo modo em produção. Há 31 testes aprovados e 2 E2E; migração Neon 2 ainda pendente. Não houve deploy nesta etapa.

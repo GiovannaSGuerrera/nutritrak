@@ -1,5 +1,6 @@
 import type { Store, MailMessage, EncryptedMessage } from './contracts';
 import * as crypto from 'node:crypto';
+import { emailEnabled } from './release-mode';
 const developmentKey = crypto.randomBytes(32);
 function key() {
   if (process.env.MAIL_ENCRYPTION_KEY) {
@@ -28,6 +29,8 @@ function decrypt(message: EncryptedMessage): MailMessage {
   );
 }
 function queueMail(store: Pick<Store, 'mailOutbox'>, message: MailMessage, userId?: string) {
+  if (!emailEnabled())
+    throw Object.assign(new Error('Envio de e-mail indisponível.'), { status: 503 });
   const now = Date.now();
   store.mailOutbox = store.mailOutbox.filter((row) => row.expiresAt > now);
   if (store.mailOutbox.length >= 10000)

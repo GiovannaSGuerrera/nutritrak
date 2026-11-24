@@ -16,3 +16,7 @@ Somente atividades não executadas automaticamente. Código/migrações/testes l
 | Autorizar promoção à main/produção | Push na main dispara deploy; solicitação atual proíbe deploy sem nova autorização | Depois dos gates, revisar commit/backup/configuração/janela; obter autorização explícita; publicar e verificar health/smoke/monitoramento | Sim. Nenhuma promoção à main/produção nesta execução |
 
 Nenhuma credencial real comprometida foi identificada nos arquivos revisados. Se houver evidência fora do repositório, revogar/rotacionar no emissor, invalidar acessos e revisar logs antes de lançar; remoção do código não basta. Chaves/credenciais reais nunca devem ser enviadas neste relatório/chat. As ações acima não afirmam conformidade LGPD integral.
+
+## Atualização de escopo: publicação sem SMTP
+
+A decisão posterior do responsável adia SMTP, documentos legais e operação de backups e autoriza produção. Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md) para comportamento implementado, validações atuais e bloqueio de acesso à equipe Vercel. As conclusões históricas acima não comprovam este novo modo em produção. Há 31 testes aprovados e 2 E2E; migração Neon 2 ainda pendente. Não houve deploy nesta etapa.

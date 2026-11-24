@@ -52,3 +52,7 @@ A reauditoria acrescentou também um teste de sobreposição de agenda em duas c
 ## CI Linux aprovado
 
 [Run45396373697](https://github.com/GiovannaSGuerrera/nutritrak/actions/runs/45396373697),commit2db9fa5:checks de instalação/lint/tipos/build/test:ci/E2E/audit concluídos com sucesso em ubuntu-latest com PostgreSQL16. Evidência em remote-ci.json. Pacote e configuração Vercel de produção não foram homologados;deploy automático da branch de verificação está desabilitado.
+
+## Atualização de escopo: publicação sem SMTP
+
+A decisão posterior do responsável adia SMTP, documentos legais e operação de backups e autoriza produção. Consulte [NO_EMAIL_RELEASE_STATUS.md](NO_EMAIL_RELEASE_STATUS.md) para comportamento implementado, validações atuais e bloqueio de acesso à equipe Vercel. As conclusões históricas acima não comprovam este novo modo em produção. Há 31 testes aprovados e 2 E2E; migração Neon 2 ainda pendente. Não houve deploy nesta etapa.
