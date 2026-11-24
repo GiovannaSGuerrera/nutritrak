@@ -79,10 +79,17 @@ test(
       assert.equal(confirmed.status, 200);
       assert.equal(confirmed.body.recoveryCodes.length, 8);
       assert.equal((await call('/api/me', undefined, current.cookie, 'GET')).status, 401);
-      assert.equal(
-        (await call('/api/login', { email: 'account@example.invalid', password: final })).status,
-        401,
-      );
+      const challenge = await call('/api/login', {
+        email: 'account@example.invalid',
+        password: final,
+      });
+      assert.equal(challenge.status, 401);
+      assert.equal(challenge.body.mfaRequired, true);
+      const wrongPassword = await call('/api/login', {
+        email: 'account@example.invalid',
+        password: 'Incorrect-password',
+      });
+      assert.equal(wrongPassword.body.mfaRequired, undefined);
       const recovery = confirmed.body.recoveryCodes[0];
       const mfa = await call('/api/login', {
         email: 'account@example.invalid',

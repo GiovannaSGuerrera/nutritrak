@@ -57,15 +57,17 @@
               autocomplete="current-password"
               placeholder="Pelo menos 12 caracteres"
           /></label>
-          <label
-            >Código do autenticador (se ativo)<input
-              id="auth-mfa"
-              inputmode="numeric"
-              autocomplete="one-time-code"
-              maxlength="6" /></label
-          ><label
-            >Código de recuperação (alternativo)<input id="auth-recovery" autocomplete="off"
-          /></label>
+          <div id="auth-second-factor" hidden>
+            <label
+              >Código do autenticador (se ativo)<input
+                id="auth-mfa"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="6" /></label
+            ><label
+              >Código de recuperação (alternativo)<input id="auth-recovery" autocomplete="off"
+            /></label>
+          </div>
           <button class="button primary full" id="auth-submit">Entrar</button>
         </form>
         <p class="auth-toggle">

@@ -665,7 +665,10 @@ async function handle(req: http.IncomingMessage, res: http.ServerResponse) {
     )
       return json(res, 401, { error: 'E-mail ou senha incorretos.' });
     if (!totp.checkSecondFactor(u as User, b))
-      return json(res, 401, { error: 'E-mail, senha ou segundo fator incorretos.' });
+      return json(res, 401, {
+        error: 'Informe o código do autenticador ou um código de recuperação.',
+        mfaRequired: true,
+      });
     if ((u as User).mfaSecret) await persist();
     const token = crypto.randomBytes(32).toString('hex');
     if (postgres)

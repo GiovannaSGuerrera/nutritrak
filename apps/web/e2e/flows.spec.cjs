@@ -11,6 +11,7 @@ for (const width of [1440, 390])
         csp.push(message.text());
     });
     await page.goto('/');
+    await expect(page.locator('#auth-second-factor')).toBeHidden();
     await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
     await page.getByLabel('Seu nome').fill('Synthetic browser');
     await page.getByLabel('E-mail', { exact: true }).fill(`browser-${Date.now()}@example.invalid`);

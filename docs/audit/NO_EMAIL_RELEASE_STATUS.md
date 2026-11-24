@@ -32,3 +32,8 @@ Vercel equipe `nutritrak1` autorizada pelo usuário. Projeto `prj_rujUSHyfxIisfs
 Código promovido à main no commit 927dc36aed545bd17e1eba6becf479cbb3f055ed após CI 45401088912 aprovado. Deploy com conexão restrita dpl_64ufV5ibN1ZMXp7UGkFRy6a7k5Fc READY e alias https://nutritrack-eta-ten.vercel.app. Smoke externo anônimo: 15/15 aprovados, incluindo health/readiness com banco, rotas privadas 401, rejeição de origem 403 e indisponibilidade explícita de e-mail/documentos 503. Evidência: evidence/production-smoke-2026-11-24.json; executor scripts/production-smoke.cjs.
 
 Não se cadastraram contas sintéticas nem se acessaram prontuários reais para smoke em produção. Fluxos autenticados completos estão comprovados em teste isolado/CI, não em sessão real de cliente. Não houve teste de carga produtivo, restore real ou aprovação jurídica. SMTP/políticas/backups seguem adiados por escolha do responsável; riscos de perda de acesso, ausência de comprovação do endereço, recuperação e privacidade permanecem documentados. Isso permite a publicação solicitada, mas não altera a classificação INTERNAL ALPHA para PRODUCTION READY.
+
+## Ajuste do login
+
+Campos de autenticador/recuperação ocultos por padrão e no cadastro. Só aparecem após senha válida de conta que já exige MFA; não há sessão emitida sem segundo fator. Senha incorreta não revela a exigência. Lint/tipos/build, 2 regressões PostgreSQL de conta e 2 E2E aprovados antes da publicação deste ajuste.
+

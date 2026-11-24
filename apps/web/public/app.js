@@ -36,6 +36,7 @@ async function api(url, opts = {}) {
   if (!r.ok) {
     const error = Error(d.error || 'Não foi possível concluir a operação.');
     error.status = r.status;
+    error.mfaRequired = url === '/api/login' && d.mfaRequired === true;
     throw error;
   }
   if (d.page && d.page.nextOffset !== null && (!opts.method || opts.method === 'GET')) {
@@ -675,6 +676,10 @@ $('#auth-form').onsubmit = async (e) => {
     await showApp(result.user);
   } catch (err) {
     $('#auth-error').textContent = err.message;
+    if (err.mfaRequired) {
+      $('#auth-second-factor').hidden = false;
+      $('#auth-mfa').focus();
+    }
   } finally {
     submit.disabled = false;
     submit.textContent = label;
@@ -683,6 +688,9 @@ $('#auth-form').onsubmit = async (e) => {
 $('#auth-toggle').onclick = () => {
   state.authMode = state.authMode === 'login' ? 'register' : 'login';
   const reg = state.authMode === 'register';
+  $('#auth-second-factor').hidden = true;
+  $('#auth-mfa').value = '';
+  $('#auth-recovery').value = '';
   $('#auth-name').hidden = !reg;
   $('#auth-name-field').hidden = !reg;
   $('#auth-name').required = reg;
