@@ -8,4 +8,4 @@ Escopo autorizado: adiar SMTP, documentos legais e operação de backups. Não c
 - [x] Permitir LEGAL_DOCUMENTS_REQUIRED=false explícito; documentos ausentes retornam indisponibilidade, sem textos fictícios.
 - [x] Manter origem HTTPS, chave de criptografia e esquema compatível obrigatórios.
 - [x] Executar regressões, lint, tipos e build; registrar evidências.
-- [ ] Preparar migração Neon com acesso autorizado; publicar somente após confirmar esquema funcional. Se acesso indisponível, documentar impedimento real.
+- [x] Preparar migração Neon com acesso autorizado; publicar somente após confirmar esquema funcional. Se acesso indisponível, documentar impedimento real.

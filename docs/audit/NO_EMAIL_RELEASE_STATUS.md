@@ -23,15 +23,12 @@ O usuário autorizou publicação em produção e adiou SMTP, documentos legais 
 
 ## Ambiente externo
 
-Neon conectado, projeto NutriTrack `late-band-38250917`, branch production `br-super-morning-b6ga2w10`, banco neondb. Consulta somente de metadados confirmou storage_migrations versão 1; migração 2 ainda necessária. Sem exclusões/alterações reais executadas nesta etapa. Não é possível omitir migrações e manter compatibilidade funcional.
+Neon conectado, projeto NutriTrack `late-band-38250917`, branch production `br-super-morning-b6ga2w10`, banco neondb. Migração 0002 aplicada em transação com timeout/lock e baseline v1 exigida; versões 1 e 2 presentes. Contagens antes/depois: 11 profissionais e 6 pacientes; 12 identidades, nenhum conflito. Nenhum registro clínico excluído. Não foi criado backup externo, conforme adiamento autorizado.
 
-Vercel conectado, mas equipe `nutritrak1` retorna 403 por ausência de grant da equipe. Link de consentimento foi fornecido pelo mecanismo oficial da Vercel, válido por 10 minutos. A conexão existente deve ser autorizada para a equipe, sem reenviar tokens no chat.
+Vercel equipe `nutritrak1` autorizada pelo usuário. Projeto `prj_rujUSHyfxIisfsj0F43Y5vdgpf86`: origem HTTPS, migrações automáticas desativadas, EMAIL_ENABLED=false, LEGAL_DOCUMENTS_REQUIRED=false e chave de MFA sensível configurados. DATABASE_URL usa conexão pooled do login restrito nutritrack_app somente no target production. O login não cria objetos, bancos ou papéis, não ignora RLS e não altera legacy_snapshot ou exclui storage_migrations; pode atualizar apenas revision nessa tabela. O segredo não foi impresso nem gravado no repositório.
 
-## Sequência pendente
+## Publicação concluída no escopo autorizado
 
-1. Aprovar acesso à equipe Vercel e confirmar projeto/conexão de banco sem imprimir segredos.
-2. Validar/applicar migração aditiva 0002 em transação, checar conflitos de identidade e permissões do runtime. Não eliminar registros para solucionar conflitos.
-3. Configurar APP_ORIGIN HTTPS, DB_AUTO_MIGRATE=false, EMAIL_ENABLED=false, LEGAL_DOCUMENTS_REQUIRED=false e chave privada de MFA no ambiente protegido. Preservar chave existente se já houver MFA.
-4. Publicar código validado na main e acompanhar build/deploy. Conferir readiness, rotas de autenticação, headers e fluxo sem e-mail.
+Código promovido à main no commit 927dc36aed545bd17e1eba6becf479cbb3f055ed após CI 45401088912 aprovado. Deploy com conexão restrita dpl_64ufV5ibN1ZMXp7UGkFRy6a7k5Fc READY e alias https://nutritrack-eta-ten.vercel.app. Smoke externo anônimo: 15/15 aprovados, incluindo health/readiness com banco, rotas privadas 401, rejeição de origem 403 e indisponibilidade explícita de e-mail/documentos 503. Evidência: evidence/production-smoke-2026-11-24.json; executor scripts/production-smoke.cjs.
 
-Nenhum deploy ou push à main foi realizado nesta etapa. SMTP/políticas/backups seguem adiados por escolha do responsável; riscos de perda de acesso, ausência de comprovação do endereço, recuperação e privacidade permanecem documentados.
+Não se cadastraram contas sintéticas nem se acessaram prontuários reais para smoke em produção. Fluxos autenticados completos estão comprovados em teste isolado/CI, não em sessão real de cliente. Não houve teste de carga produtivo, restore real ou aprovação jurídica. SMTP/políticas/backups seguem adiados por escolha do responsável; riscos de perda de acesso, ausência de comprovação do endereço, recuperação e privacidade permanecem documentados. Isso permite a publicação solicitada, mas não altera a classificação INTERNAL ALPHA para PRODUCTION READY.
