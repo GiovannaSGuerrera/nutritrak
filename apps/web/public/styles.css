@@ -2027,10 +2027,15 @@ textarea::placeholder {
   color: #173d30;
 }
 .auth-intro-title {
-  font: 400 clamp(34px, 5vw, 62px)/1.02 var(--display);
+  word-break: normal;
+  font: 400 clamp(28px, 3vw, 44px)/1.12 var(--display);
   letter-spacing: -0.025em;
   margin: 18px 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: normal;
+}
+.auth-intro-title span {
+  display: block;
+  white-space: nowrap;
 }
 .auth-intro > p:last-child {
   margin: 0;
@@ -2323,5 +2328,93 @@ textarea::placeholder {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
+  }
+}
+
+.account-security {
+  display: grid;
+  gap: 24px;
+}
+.account-heading {
+  display: flex;
+  gap: 20px;
+  align-items: center;
+  justify-content: space-between;
+}
+.account-heading h1 {
+  margin: 0 0 8px;
+}
+.account-heading p,
+.account-panel > p {
+  color: var(--muted);
+  margin: 0 0 20px;
+  line-height: 1.6;
+}
+.account-heading p {
+  margin-bottom: 0;
+}
+.account-notice {
+  margin: 0;
+  padding: 16px 20px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #eef3e9;
+  line-height: 1.6;
+}
+.account-sections {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+.account-panel {
+  margin: 0;
+  padding: clamp(20px, 3vw, 32px);
+  min-width: 0;
+}
+.account-panel h2 {
+  font-size: 22px;
+  margin: 0 0 12px;
+}
+.account-form {
+  display: grid;
+  gap: 16px;
+  max-width: 480px;
+}
+.account-form .field {
+  margin: 0;
+}
+.account-form input {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+}
+.account-form > .button {
+  justify-self: start;
+  white-space: normal;
+}
+.account-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.account-extra summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+.account-extra[open] summary {
+  margin-bottom: 24px;
+}
+#account-feedback:empty,
+#mfa-information:empty {
+  display: none;
+}
+@media (max-width: 900px) {
+  .account-sections {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-heading {
+    align-items: flex-start;
+    flex-direction: column;
   }
 }

@@ -93,6 +93,7 @@
       "env": {
         "PORT": "39129",
         "NODE_ENV": "test",
+        "EMAIL_ENABLED": "false",
         "DATABASE_URL": "",
         "DATA_DIR": ".tmp-pg-check/e2e",
         "MAIL_ENCRYPTION_KEY": "6666666666666666666666666666666666666666666666666666666666666666"
@@ -122,12 +123,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 1819,
+                  "duration": 1890,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-24T13:20:49.402Z",
+                  "startTime": "2026-11-24T13:27:12.352Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -136,6 +137,74 @@
             }
           ],
           "id": "7cf1558667ef42c2297e-9960e0843218f3bf8c49",
+          "file": "flows.spec.cjs",
+          "line": 4,
+          "column": 3
+        },
+        {
+          "title": "cadastro, paciente, plano preservado e conta 1024px",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1688,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-24T13:27:14.344Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7cf1558667ef42c2297e-2aec07962b27bf3f5e09",
+          "file": "flows.spec.cjs",
+          "line": 4,
+          "column": 3
+        },
+        {
+          "title": "cadastro, paciente, plano preservado e conta 768px",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "",
+              "projectName": "",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1600,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-11-24T13:27:16.043Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "7cf1558667ef42c2297e-061a053c54fc09b522b6",
           "file": "flows.spec.cjs",
           "line": 4,
           "column": 3
@@ -156,12 +225,12 @@
                   "workerIndex": 0,
                   "parallelIndex": 0,
                   "status": "passed",
-                  "duration": 2119,
+                  "duration": 2081,
                   "errors": [],
                   "stdout": [],
                   "stderr": [],
                   "retry": 0,
-                  "startTime": "2026-11-24T13:20:51.331Z",
+                  "startTime": "2026-11-24T13:27:17.658Z",
                   "annotations": [],
                   "attachments": []
                 }
@@ -179,9 +248,9 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2026-11-24T13:20:46.913Z",
-    "duration": 6793.644,
-    "expected": 2,
+    "startTime": "2026-11-24T13:27:09.919Z",
+    "duration": 10033.671,
+    "expected": 4,
     "skipped": 0,
     "unexpected": 0,
     "flaky": 0

@@ -1,21 +1,42 @@
 /* Account security controls use the same origin/session and existing design system. */
 /* global state */
 async function accountSecurityPage() {
+  document.querySelector('#crumb').textContent = 'Segurança e privacidade';
+  document.querySelectorAll('.nav-item').forEach((item) => {
+    item.classList.remove('active');
+    item.removeAttribute('aria-current');
+  });
   document.querySelector('.sidebar')?.classList.remove('open');
   document.querySelector('#mobile-menu')?.setAttribute('aria-expanded', 'false');
   const root = document.querySelector('#content');
+  const secondFactorFields = state.user.mfaEnabled
+    ? `<label class="field">Código do autenticador<input name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="6"></label><label class="field">Código de recuperação (alternativo)<input name="recoveryCode" autocomplete="off"></label>`
+    : '';
   const deliveryNotice =
     state.user.emailDeliveryEnabled === false
-      ? '<p role="status">Envio de e-mail indisponível. Não há recuperação de senha por e-mail; guarde sua senha e os códigos de recuperação do autenticador.</p>'
+      ? '<p class="account-notice" role="status">A recuperação de senha por e-mail ainda não está disponível. Mantenha sua senha guardada em local seguro.</p>'
       : '';
-  root.innerHTML = `<section class="panel"><h1>Segurança e privacidade</h1><p>Exporte os dados da sua conta ou gerencie suas credenciais.</p><button class="button" id="export-account">Exportar meus dados</button><form id="account-password-form"><label>Senha atual<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>Nova senha<input name="password" type="password" minlength="12" maxlength="200" required autocomplete="new-password"></label><label>Código do autenticador (se ativo)<input name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="6"></label><label>Código de recuperação (alternativo)<input name="recoveryCode" autocomplete="off"></label><button class="button primary">Alterar senha e encerrar sessões</button></form><form id="account-privacy-form"><label>Confirme sua senha<input name="currentPassword" type="password" required autocomplete="current-password"></label><label>Código do autenticador (se ativo)<input name="code" autocomplete="one-time-code" inputmode="numeric" maxlength="6"></label><label>Código de recuperação (alternativo)<input name="recoveryCode" autocomplete="off"></label><button class="button">Solicitar exclusão de conta</button></form><p>Prontuários podem exigir retenção legal. A solicitação será registrada para avaliação.</p><p id="account-feedback" role="status" aria-live="polite"></p></section>`;
-  root.insertAdjacentHTML(
-    'beforeend',
-    `<section class="panel"><h2>Autenticação em duas etapas</h2><p>Configure um aplicativo autenticador. Guarde os códigos de recuperação em local seguro.</p><form id="mfa-form"><label>Senha atual<input name="currentPassword" type="password" autocomplete="current-password" required></label><label>Código do autenticador<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><button type="button" class="button" id="mfa-setup">Configurar autenticador</button><button type="submit" class="button primary">Confirmar ativação</button><button type="button" class="button" id="mfa-disable">Desativar duas etapas</button></form><pre id="mfa-information" role="status" aria-live="polite"></pre></section>`,
-  );
-  root.insertAdjacentHTML('afterbegin', deliveryNotice);
+  root.innerHTML = `<div class="account-security">
+    <header class="account-heading"><div><h1>Segurança e privacidade</h1><p>Gerencie sua senha e os dados da sua conta.</p></div><button class="button" id="export-account">Exportar meus dados</button></header>
+    ${deliveryNotice}
+    <div class="account-sections">
+      <section class="panel account-panel"><h2>Alterar senha</h2><p>Use uma senha de 12 a 200 caracteres. Ao alterar, todas as sessões serão encerradas.</p>
+        <form id="account-password-form" class="account-form"><label class="field">Senha atual<input name="currentPassword" type="password" required autocomplete="current-password"></label><label class="field">Nova senha<input name="password" type="password" minlength="12" maxlength="200" required autocomplete="new-password"></label>${secondFactorFields}<button class="button primary">Alterar senha e encerrar sessões</button></form>
+      </section>
+      <section class="panel account-panel"><h2>Solicitar exclusão da conta</h2><p>Prontuários podem exigir retenção legal. Sua solicitação será registrada para avaliação.</p>
+        <form id="account-privacy-form" class="account-form"><label class="field">Confirme sua senha<input name="currentPassword" type="password" required autocomplete="current-password"></label>${secondFactorFields}<button class="button">Solicitar exclusão de conta</button></form>
+      </section>
+    </div>
+    <p id="account-feedback" role="status" aria-live="polite"></p>
+    <details class="panel account-panel account-extra" ${state.user.mfaEnabled ? 'open' : ''}><summary>Proteção adicional da conta${state.user.mfaEnabled ? ' · ativada' : ' · opcional'}</summary>
+      <h2>Autenticação em duas etapas</h2><p>Use um aplicativo autenticador para proteger o acesso. Guarde os códigos de recuperação em local seguro.</p>
+      <form id="mfa-form" class="account-form"><label class="field">Senha atual<input name="currentPassword" type="password" autocomplete="current-password" required></label><label class="field" id="mfa-code-field" hidden>Código do autenticador<input name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label><div class="account-actions"><button type="button" class="button" id="mfa-setup" ${state.user.mfaEnabled ? 'hidden' : ''}>Configurar autenticador</button><button type="submit" class="button primary" id="mfa-confirm" hidden>Confirmar ativação</button><button type="button" class="button" id="mfa-disable" ${state.user.mfaEnabled ? '' : 'hidden'}>Desativar duas etapas</button></div></form>
+      <pre id="mfa-information" role="status" aria-live="polite"></pre>
+    </details>
+  </div>`;
   const mfaForm = document.querySelector('#mfa-form'),
     mfaInfo = document.querySelector('#mfa-information');
+  document.querySelector('#mfa-code-field').hidden = !state.user.mfaEnabled;
   const mfaData = () => Object.fromEntries(new FormData(mfaForm));
   document.querySelector('#mfa-setup').onclick = async () => {
     try {
@@ -23,6 +44,8 @@ async function accountSecurityPage() {
         method: 'POST',
         body: JSON.stringify(mfaData()),
       });
+      document.querySelector('#mfa-code-field').hidden = false;
+      document.querySelector('#mfa-confirm').hidden = false;
       mfaInfo.textContent =
         'Chave para adicionar manualmente ao autenticador: ' +
         result.secret +

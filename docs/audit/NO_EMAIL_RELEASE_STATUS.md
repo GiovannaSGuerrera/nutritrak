@@ -37,3 +37,8 @@ Não se cadastraram contas sintéticas nem se acessaram prontuários reais para 
 
 Campos de autenticador/recuperação ocultos por padrão e no cadastro. Só aparecem após senha válida de conta que já exige MFA; não há sessão emitida sem segundo fator. Senha incorreta não revela a exigência. Lint/tipos/build, 2 regressões PostgreSQL de conta e 2 E2E aprovados antes da publicação deste ajuste.
 
+
+## Ajuste visual de segurança e login
+
+Formulários de senha/exclusão organizados em cartões responsivos com campos estilizados e rótulos associados. Códigos secundários aparecem apenas para contas com MFA; configuração opcional fica recolhida. Breadcrumb atualizado. Aviso de e-mail contextualizado. Login usa duas linhas inteiras para Acompanhamento nutricional, descrição revisada e sem aviso incorreto de armazenamento local. Lint/tipos/build aprovados; 4 E2E em 1440/1024/768/390px, sem overflow, sem violações Axe sérias/críticas, sem erros CSP. Capturas locais revisadas antes de publicar.
+

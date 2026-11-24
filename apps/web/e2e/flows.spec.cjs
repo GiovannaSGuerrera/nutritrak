@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
 const { AxeBuilder } = require('@axe-core/playwright');
-for (const width of [1440, 390])
+for (const width of [1440, 1024, 768, 390])
   test(`cadastro, paciente, plano preservado e conta ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const errors = [],
@@ -12,6 +12,13 @@ for (const width of [1440, 390])
     });
     await page.goto('/');
     await expect(page.locator('#auth-second-factor')).toBeHidden();
+    for (const line of await page.locator('.auth-intro-title span').all()) {
+      expect(
+        await line.evaluate((element) => element.scrollWidth <= element.clientWidth),
+      ).toBeTruthy();
+    }
+    await expect(page.getByText('Dados persistidos localmente', { exact: false })).toHaveCount(0);
+    await page.screenshot({ path: `.tmp-pg-check/login-${width}.png`, fullPage: true });
     await page.getByRole('button', { name: 'Criar conta', exact: true }).click();
     await page.getByLabel('Seu nome').fill('Synthetic browser');
     await page.getByLabel('E-mail', { exact: true }).fill(`browser-${Date.now()}@example.invalid`);
@@ -44,6 +51,9 @@ for (const width of [1440, 390])
     if (width < 600) await page.locator('#mobile-menu').click();
     await page.locator('#security-account').click();
     await expect(page.getByRole('heading', { name: 'Segurança e privacidade' })).toBeVisible();
+    await expect(page.locator('#account-password-form input[name="code"]')).toHaveCount(0);
+    await expect(page.locator('#mfa-form')).toBeHidden();
+    await page.screenshot({ path: `.tmp-pg-check/security-${width}.png`, fullPage: true });
     const issues = (await new AxeBuilder({ page }).analyze()).violations.filter((x) =>
       ['critical', 'serious'].includes(x.impact),
     );

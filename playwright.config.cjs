@@ -11,6 +11,7 @@ module.exports = defineConfig({
     env: {
       PORT: '39129',
       NODE_ENV: 'test',
+      EMAIL_ENABLED: 'false',
       DATABASE_URL: '',
       DATA_DIR: '.tmp-pg-check/e2e',
       MAIL_ENCRYPTION_KEY: '6'.repeat(64),
